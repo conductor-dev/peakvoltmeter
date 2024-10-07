@@ -1,0 +1,7 @@
+[package]
+name = "peakvoltmeter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+conductor = { git = "ssh://git@github.com/conductor-dev/conductor.git" }
