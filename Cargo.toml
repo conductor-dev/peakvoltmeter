@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+eframe = "0.29.1"
 conductor = { git = "ssh://git@github.com/conductor-dev/conductor.git" }
+egui = "0.29.1"
+egui_plot = "0.29.0"
