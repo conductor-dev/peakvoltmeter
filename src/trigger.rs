@@ -36,7 +36,7 @@ where
             return self.iter.next();
         }
 
-        while let Some(current_value) = self.iter.next() {
+        for current_value in self.iter.by_ref() {
             if let Some(prev_value) = self.prev_value {
                 if current_value > self.threshold && prev_value <= self.threshold {
                     self.triggered = true;
