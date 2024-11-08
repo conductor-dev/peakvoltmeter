@@ -1,3 +1,4 @@
+mod trigger;
 mod ui;
 
 use conductor::prelude::*;
@@ -30,9 +31,9 @@ fn main() {
 }
 
 #[derive(Clone, Copy)]
-struct PeakVoltmeterPacket(i32);
+struct PeakVoltmeterPacket(f32);
 
-impl From<PeakVoltmeterPacket> for i32 {
+impl From<PeakVoltmeterPacket> for f32 {
     fn from(packet: PeakVoltmeterPacket) -> Self {
         packet.0
     }
@@ -40,11 +41,11 @@ impl From<PeakVoltmeterPacket> for i32 {
 
 impl UdpDeserializer for PeakVoltmeterPacket {
     fn max_packet_size() -> usize {
-        size_of::<i32>()
+        size_of::<f32>()
     }
 
     fn deserialize_packet(bytes: &[u8]) -> Self {
         // Self(i32::from_be_bytes([bytes[5], bytes[6], bytes[7], 0]))
-        Self(i32::from_ne_bytes(bytes.try_into().unwrap()))
+        Self(f32::from_ne_bytes(bytes.try_into().unwrap()))
     }
 }
