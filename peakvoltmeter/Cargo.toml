@@ -1,0 +1,11 @@
+[package]
+name = "peakvoltmeter"
+version = { workspace = true }
+edition = { workspace = true }
+readme = { workspace = true }
+
+[dependencies]
+eframe = "0.29.1"
+conductor = { git = "ssh://git@github.com/conductor-dev/conductor.git" }
+egui = "0.29.1"
+egui_plot = "0.29.0"
