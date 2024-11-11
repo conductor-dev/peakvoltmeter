@@ -1,70 +1,63 @@
-pub struct RisingEdgeTrigger<I, T>
-where
-    I: Iterator<Item = T>,
-    T: PartialOrd + Copy,
-{
-    iter: I,
+use conductor::{
+    core::{NodeConfig, NodeRunner},
+    prelude::{
+        NodeConfigInputPort, NodeConfigOutputPort, NodeRunnerInputPort, NodeRunnerOutputPort,
+    },
+};
+
+#[derive(Clone)]
+pub enum TriggerMessage {
+    Triggered,
+}
+
+struct RisingEdgeTriggerRunner<T> {
     threshold: T,
-    prev_value: Option<T>,
-    triggered: bool,
+
+    input: NodeRunnerInputPort<T>,
+    trigger: NodeRunnerOutputPort<TriggerMessage>,
 }
 
-impl<I, T> RisingEdgeTrigger<I, T>
-where
-    I: Iterator<Item = T>,
-    T: PartialOrd + Copy,
-{
-    pub fn new(iter: I, threshold: T) -> Self {
-        RisingEdgeTrigger {
-            iter,
-            threshold,
-            prev_value: None,
-            triggered: false,
-        }
-    }
-}
+impl<T: PartialOrd> NodeRunner for RisingEdgeTriggerRunner<T> {
+    fn run(self: Box<Self>) {
+        let mut previous_value = self.input.recv().unwrap();
 
-impl<I, T> Iterator for RisingEdgeTrigger<I, T>
-where
-    I: Iterator<Item = T>,
-    T: PartialOrd + Copy,
-{
-    type Item = T;
+        loop {
+            let value = self.input.recv().unwrap();
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.triggered {
-            return self.iter.next();
-        }
-
-        for current_value in self.iter.by_ref() {
-            if let Some(prev_value) = self.prev_value {
-                if current_value > self.threshold && prev_value <= self.threshold {
-                    self.triggered = true;
-                    self.prev_value = Some(current_value);
-                    return Some(current_value);
-                }
+            if previous_value < self.threshold && value >= self.threshold {
+                self.trigger.send(&TriggerMessage::Triggered);
             }
-            self.prev_value = Some(current_value);
-        }
 
-        None
+            previous_value = value;
+        }
     }
 }
 
-pub trait RisingEdgeTriggerExt<I, T>: Iterator<Item = T>
-where
-    I: Iterator<Item = T>,
-    T: PartialOrd + Copy,
-{
-    fn rising_edge_trigger(self, threshold: T) -> RisingEdgeTrigger<I, T>;
+pub struct RisingEdgeTrigger<T: PartialOrd> {
+    threshold: T,
+
+    pub input: NodeConfigInputPort<T>,
+    pub trigger: NodeConfigOutputPort<TriggerMessage>,
 }
 
-impl<I, T> RisingEdgeTriggerExt<I, T> for I
-where
-    I: Iterator<Item = T>,
-    T: PartialOrd + Copy,
-{
-    fn rising_edge_trigger(self, threshold: T) -> RisingEdgeTrigger<I, T> {
-        RisingEdgeTrigger::new(self, threshold)
+impl<T: PartialOrd> RisingEdgeTrigger<T> {
+    pub fn new(threshold: T) -> Self {
+        Self {
+            threshold,
+
+            input: NodeConfigInputPort::new(),
+            trigger: NodeConfigOutputPort::new(),
+        }
+    }
+}
+
+impl<T: PartialOrd + Clone + Send + 'static> NodeConfig for RisingEdgeTrigger<T> {
+    fn into_runner(self: Box<Self>) -> Box<dyn NodeRunner + Send> {
+        Box::new(RisingEdgeTriggerRunner {
+            threshold: self.threshold,
+
+            input: self.input.into(),
+            trigger: self.trigger.into(),
+        })
     }
 }
