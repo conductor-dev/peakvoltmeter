@@ -9,3 +9,4 @@ eframe = "0.29.1"
 conductor = { git = "ssh://git@github.com/conductor-dev/conductor.git" }
 egui = "0.29.1"
 egui_plot = "0.29.0"
+rustfft = "6.2.0"

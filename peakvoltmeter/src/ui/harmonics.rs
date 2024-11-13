@@ -1,70 +1,59 @@
-use crate::{trigger::TriggerMessage, SAMPLE_RATE};
+use crate::{FFT_SIZE, SAMPLE_RATE};
 use conductor::{
-    core::{receive, NodeConfig, NodeRunner},
+    core::{NodeConfig, NodeRunner},
     prelude::{NodeConfigInputPort, NodeRunnerInputPort},
 };
 use egui::{Color32, RichText, Vec2b};
 use egui_plot::{Legend, Line, Plot, PlotPoints};
 use std::sync::{Arc, RwLock};
 
-struct TimeChartRunner {
+struct HarmonicsRunner {
     data: Arc<RwLock<Vec<f64>>>,
 
-    trigger: NodeRunnerInputPort<TriggerMessage>,
-    input: NodeRunnerInputPort<i32>,
+    input: NodeRunnerInputPort<Vec<f64>>,
 }
 
-impl NodeRunner for TimeChartRunner {
+impl NodeRunner for HarmonicsRunner {
     fn run(self: Box<Self>) {
-        let mut cache = Vec::new();
-
         loop {
-            receive! {
-                (self.trigger): _msg => {
-                    *self.data.write().unwrap() = std::mem::take(&mut cache);
-                },
-                (self.input): msg => {
-                    cache.push(msg.into());
-                },
-            };
+            let input = self.input.recv().unwrap();
+
+            *self.data.write().unwrap() = input;
         }
     }
 }
 
-pub struct TimeChart {
+pub struct Harmonics {
     data: Arc<RwLock<Vec<f64>>>,
 
-    pub trigger: NodeConfigInputPort<TriggerMessage>,
-    pub input: NodeConfigInputPort<i32>,
+    pub input: NodeConfigInputPort<Vec<f64>>,
 }
 
-impl TimeChart {
+impl Harmonics {
     pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
         Self {
             data,
 
-            trigger: NodeConfigInputPort::new(),
             input: NodeConfigInputPort::new(),
         }
     }
 }
 
-impl NodeConfig for TimeChart {
+impl NodeConfig for Harmonics {
     fn into_runner(self: Box<Self>) -> Box<dyn NodeRunner + Send> {
-        Box::new(TimeChartRunner {
+        Box::new(HarmonicsRunner {
             data: self.data,
 
-            trigger: self.trigger.into(),
             input: self.input.into(),
         })
     }
 }
 
-pub struct TimeChartUi {
+pub struct HarmonicsUi {
     data: Arc<RwLock<Vec<f64>>>,
 }
 
-impl TimeChartUi {
+impl HarmonicsUi {
     pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
         Self { data }
     }
@@ -78,29 +67,27 @@ impl TimeChartUi {
             |ui| {
                 ui.spacing_mut().item_spacing.y = 10.0;
 
-                ui.label(RichText::new("Time Chart").size(20.0).strong());
+                ui.label(RichText::new("Harmonics").size(20.0).strong());
 
-                let plot = Plot::new("Plot")
-                    .auto_bounds(Vec2b::new(false, true))
+                let plot = Plot::new("Harmonics")
+                    .auto_bounds(Vec2b::FALSE)
                     .legend(Legend::default())
-                    .y_axis_label("Voltage")
-                    .x_axis_label("Time")
+                    .y_axis_label("Signal Strength (dBV)")
+                    .x_axis_label("Frequency (Hz)")
                     .allow_boxed_zoom(false)
                     .allow_drag(false)
                     .allow_zoom(false)
                     .allow_scroll(false)
+                    .include_y(0.0)
+                    .include_y(-150)
                     .include_x(0.0)
-                    .include_x(self.sample_to_time(200));
+                    .include_x(FFT_SIZE as f64 / 2.0);
 
                 plot.show(ui, |plot_ui| {
                     plot_ui.line(self.signal());
                 });
             },
         );
-    }
-
-    fn sample_to_time(&self, sample: usize) -> f64 {
-        sample as f64 * (1.0 / SAMPLE_RATE as f64)
     }
 
     fn signal(&self) -> Line {
@@ -111,7 +98,7 @@ impl TimeChartUi {
                 .clone()
                 .into_iter()
                 .enumerate()
-                .map(|(i, v)| [self.sample_to_time(i), v]),
+                .map(|(i, v)| [i as f64 * (SAMPLE_RATE as f64 / FFT_SIZE as f64), v]),
         );
 
         Line::new(plot_points)
