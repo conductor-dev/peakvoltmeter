@@ -12,10 +12,10 @@ use std::{
 use trigger::RisingEdgeTrigger;
 use ui::{harmonics::Harmonics, rms_trend::RmsTrend, time_chart::TimeChart, Application};
 
-pub const FFT_SIZE: usize = 1024; // samples
+pub const FFT_SIZE: usize = 2048; // samples
 pub const SAMPLE_RATE: usize = 3125; // samples per second
 pub const RMS_WINDOW: f32 = 0.5; // seconds
-pub const RMS_CHART_SIZE: f32 = 10.0; // seconds
+pub const RMS_CHART_SIZE: f32 = 180.0; // seconds
 
 fn main() {
     let time_chart_buffer = Arc::new(RwLock::new(Vec::new()));
@@ -29,8 +29,13 @@ fn main() {
     let trigger = RisingEdgeTrigger::new(0);
     let period = Downsampler::new(3);
 
-    let fft = FFT::new(FFT_SIZE);
-    let downsampler = Downsampler::new(1);
+    let fft_buffer = Buffer::new(false);
+    fft_buffer.size.set_initial(FFT_SIZE);
+
+    let hann_window = Window::new(WindowType::Hann);
+
+    let fft = FFT::new();
+    let downsampler = Downsampler::new(600);
     let lambda = Lambdaer::new(|fft: Vec<Complex<f32>>| {
         let length = fft.len();
 
@@ -59,9 +64,11 @@ fn main() {
     into_i32.output.connect(&trigger.input);
     into_i32.output.connect(&time_chart.input);
 
-    into_f32.output.connect(&fft.input);
-    fft.output.connect(&downsampler.input);
-    downsampler.output.connect(&lambda.input);
+    into_f32.output.connect(&fft_buffer.input);
+    fft_buffer.output.connect(&downsampler.input);
+    downsampler.output.connect(&hann_window.input);
+    hann_window.output.connect(&fft.input);
+    fft.output.connect(&lambda.input);
     lambda.output.connect(&harmonics.input);
 
     into_i32.output.connect(&rms_trend.input);
@@ -72,6 +79,8 @@ fn main() {
             into_i32,
             into_f32,
             trigger,
+            fft_buffer,
+            hann_window,
             period,
             fft,
             downsampler,

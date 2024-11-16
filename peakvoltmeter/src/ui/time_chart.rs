@@ -4,7 +4,7 @@ use conductor::{
     prelude::{NodeConfigInputPort, NodeRunnerInputPort},
 };
 use egui::{Color32, RichText, Vec2b};
-use egui_plot::{Legend, Line, Plot, PlotPoints};
+use egui_plot::{Line, Plot, PlotPoints};
 use std::sync::{Arc, RwLock};
 
 struct TimeChartRunner {
@@ -82,7 +82,6 @@ impl TimeChartUi {
 
                 let plot = Plot::new("Plot")
                     .auto_bounds(Vec2b::new(false, true))
-                    .legend(Legend::default())
                     .y_axis_label("Voltage")
                     .x_axis_label("Time")
                     .allow_boxed_zoom(false)
@@ -90,7 +89,7 @@ impl TimeChartUi {
                     .allow_zoom(false)
                     .allow_scroll(false)
                     .include_x(0.0)
-                    .include_x(self.sample_to_time(200));
+                    .include_x(Self::sample_to_time(200));
 
                 plot.show(ui, |plot_ui| {
                     plot_ui.line(self.signal());
@@ -99,7 +98,7 @@ impl TimeChartUi {
         );
     }
 
-    fn sample_to_time(&self, sample: usize) -> f64 {
+    fn sample_to_time(sample: usize) -> f64 {
         sample as f64 * (1.0 / SAMPLE_RATE as f64)
     }
 
@@ -111,11 +110,11 @@ impl TimeChartUi {
                 .clone()
                 .into_iter()
                 .enumerate()
-                .map(|(i, v)| [self.sample_to_time(i), v]),
+                .map(|(i, v)| [Self::sample_to_time(i), v]),
         );
 
         Line::new(plot_points)
-            .color(Color32::LIGHT_RED)
+            .color(Color32::LIGHT_BLUE)
             .name("Signal")
     }
 }

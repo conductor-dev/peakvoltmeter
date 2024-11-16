@@ -4,7 +4,7 @@ use conductor::{
     prelude::{NodeConfigInputPort, NodeRunnerInputPort},
 };
 use egui::{Color32, RichText, Vec2b};
-use egui_plot::{Legend, Line, Plot, PlotPoints};
+use egui_plot::{Line, Plot, PlotPoints};
 use std::sync::{Arc, RwLock};
 
 struct HarmonicsRunner {
@@ -71,7 +71,6 @@ impl HarmonicsUi {
 
                 let plot = Plot::new("Harmonics")
                     .auto_bounds(Vec2b::FALSE)
-                    .legend(Legend::default())
                     .y_axis_label("Signal Strength (dBV)")
                     .x_axis_label("Frequency (Hz)")
                     .allow_boxed_zoom(false)
@@ -79,15 +78,19 @@ impl HarmonicsUi {
                     .allow_zoom(false)
                     .allow_scroll(false)
                     .include_y(0.0)
-                    .include_y(-150)
+                    .include_y(-200)
                     .include_x(0.0)
-                    .include_x(FFT_SIZE as f64 / 2.0);
+                    .include_x(Self::y_to_hz(FFT_SIZE as f64 / 2.0));
 
                 plot.show(ui, |plot_ui| {
                     plot_ui.line(self.signal());
                 });
             },
         );
+    }
+
+    fn y_to_hz(y: f64) -> f64 {
+        y * (SAMPLE_RATE as f64 / FFT_SIZE as f64)
     }
 
     fn signal(&self) -> Line {
@@ -98,11 +101,11 @@ impl HarmonicsUi {
                 .clone()
                 .into_iter()
                 .enumerate()
-                .map(|(i, v)| [i as f64 * (SAMPLE_RATE as f64 / FFT_SIZE as f64), v]),
+                .map(|(i, v)| [Self::y_to_hz(i as f64), v]),
         );
 
         Line::new(plot_points)
-            .color(Color32::LIGHT_RED)
+            .color(Color32::LIGHT_BLUE)
             .name("Signal")
     }
 }

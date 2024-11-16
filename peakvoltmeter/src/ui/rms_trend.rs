@@ -4,7 +4,7 @@ use conductor::{
     prelude::{CircularBuffer, NodeConfigInputPort, NodeRunnerInputPort},
 };
 use egui::{Color32, RichText};
-use egui_plot::{Legend, Line, Plot, PlotPoints};
+use egui_plot::{Line, Plot, PlotPoints};
 use std::sync::{Arc, RwLock};
 
 struct RmsTrendRunner {
@@ -77,7 +77,6 @@ impl RmsTrendUi {
             ui.label(RichText::new("RMS Trend").size(20.0).strong());
 
             let plot = Plot::new("RmsTrend")
-                .legend(Legend::default())
                 .y_axis_label("Voltage")
                 .x_axis_label("Time")
                 .allow_boxed_zoom(false)
@@ -91,7 +90,7 @@ impl RmsTrendUi {
         });
     }
 
-    fn sample_to_time(&self, sample: usize) -> f64 {
+    fn sample_to_time(sample: usize) -> f64 {
         sample as f64 * (1.0 / SAMPLE_RATE as f64)
     }
 
@@ -103,11 +102,11 @@ impl RmsTrendUi {
                 .clone()
                 .into_iter()
                 .enumerate()
-                .map(|(i, v)| [self.sample_to_time(i), v]),
+                .map(|(i, v)| [Self::sample_to_time(i), v]),
         );
 
         Line::new(plot_points)
-            .color(Color32::LIGHT_RED)
+            .color(Color32::LIGHT_BLUE)
             .name("Signal")
     }
 }
