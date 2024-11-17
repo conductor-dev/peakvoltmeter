@@ -1,7 +1,7 @@
 mod chart;
 mod trigger;
 
-use crate::{PeakVoltmeterPacket, SAMPLE_RATE};
+use crate::{application::Application, PeakVoltmeterPacket};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
@@ -50,7 +50,7 @@ impl TimeChart {
         Self { data }
     }
 
-    pub fn ui(&self, ui: &mut egui::Ui) {
+    pub fn ui(&self, ui: &mut egui::Ui, application: &Application) {
         let available_size = ui.available_size();
 
         ui.allocate_ui_with_layout(
@@ -70,20 +70,20 @@ impl TimeChart {
                     .allow_zoom(false)
                     .allow_scroll(false)
                     .include_x(0.0)
-                    .include_x(Self::sample_to_time(200));
+                    .include_x(Self::sample_to_time(200, application));
 
                 plot.show(ui, |plot_ui| {
-                    plot_ui.line(self.signal());
+                    plot_ui.line(self.signal(application));
                 });
             },
         );
     }
 
-    fn sample_to_time(sample: usize) -> f64 {
-        sample as f64 * (1.0 / SAMPLE_RATE as f64)
+    fn sample_to_time(sample: usize, application: &Application) -> f64 {
+        sample as f64 * (1.0 / application.sample_rate as f64)
     }
 
-    fn signal(&self) -> Line {
+    fn signal(&self, application: &Application) -> Line {
         let plot_points = PlotPoints::from_iter(
             self.data
                 .read()
@@ -91,7 +91,7 @@ impl TimeChart {
                 .clone()
                 .into_iter()
                 .enumerate()
-                .map(|(i, v)| [Self::sample_to_time(i), v]),
+                .map(|(i, v)| [Self::sample_to_time(i, application), v]),
         );
 
         Line::new(plot_points)

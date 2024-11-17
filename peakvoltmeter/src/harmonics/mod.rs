@@ -1,6 +1,6 @@
 mod chart;
 
-use crate::{PeakVoltmeterPacket, FFT_SIZE, SAMPLE_RATE};
+use crate::{application::Application, settings::FftSize, PeakVoltmeterPacket};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
@@ -8,9 +8,12 @@ use egui_plot::{Line, Plot, PlotPoints};
 use rustfft::num_complex::Complex;
 use std::sync::{Arc, RwLock};
 
-pub fn harmonics(
-    data: Arc<RwLock<Vec<f64>>>,
-) -> Pipeline<NodeConfigInputPort<PeakVoltmeterPacket>, ()> {
+pub struct HarmonicsInputPorts {
+    pub data: NodeConfigInputPort<PeakVoltmeterPacket>,
+    pub fft_size: NodeConfigInputPort<FftSize>,
+}
+
+pub fn harmonics(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<HarmonicsInputPorts, ()> {
     let into_f32 = Intoer::<_, f32>::new();
 
     let fft_buffer = Buffer::new(false);
@@ -37,8 +40,6 @@ pub fn harmonics(
 
     let chart = Chart::new(data);
 
-    fft_buffer.size.set_initial(FFT_SIZE);
-
     into_f32.output.connect(&fft_buffer.input);
 
     fft_buffer.output.connect(&downsampler.input);
@@ -51,7 +52,10 @@ pub fn harmonics(
 
     lambda.output.connect(&chart.input);
 
-    let input = into_f32.input.clone();
+    let input_ports = HarmonicsInputPorts {
+        data: into_f32.input.clone(),
+        fft_size: fft_buffer.size.clone(),
+    };
 
     Pipeline::new(
         vec![
@@ -63,7 +67,7 @@ pub fn harmonics(
             Box::new(lambda),
             Box::new(chart),
         ],
-        input,
+        input_ports,
         (),
     )
 }
@@ -77,7 +81,7 @@ impl Harmonics {
         Self { data }
     }
 
-    pub fn ui(&self, ui: &mut egui::Ui) {
+    pub fn ui(&self, ui: &mut egui::Ui, application: &Application) {
         let available_size = ui.available_size();
 
         ui.allocate_ui_with_layout(
@@ -99,20 +103,23 @@ impl Harmonics {
                     .include_y(0.0)
                     .include_y(-200)
                     .include_x(0.0)
-                    .include_x(Self::y_to_hz(FFT_SIZE as f64 / 2.0));
+                    .include_x(Self::y_to_hz(
+                        application.fft_size as f64 / 2.0,
+                        application,
+                    ));
 
                 plot.show(ui, |plot_ui| {
-                    plot_ui.line(self.signal());
+                    plot_ui.line(self.signal(application));
                 });
             },
         );
     }
 
-    fn y_to_hz(y: f64) -> f64 {
-        y * (SAMPLE_RATE as f64 / FFT_SIZE as f64)
+    fn y_to_hz(y: f64, application: &Application) -> f64 {
+        y * (application.sample_rate as f64 / application.fft_size as f64)
     }
 
-    fn signal(&self) -> Line {
+    fn signal(&self, application: &Application) -> Line {
         let plot_points = PlotPoints::from_iter(
             self.data
                 .read()
@@ -120,7 +127,7 @@ impl Harmonics {
                 .clone()
                 .into_iter()
                 .enumerate()
-                .map(|(i, v)| [Self::y_to_hz(i as f64), v]),
+                .map(|(i, v)| [Self::y_to_hz(i as f64, application), v]),
         );
 
         Line::new(plot_points)
