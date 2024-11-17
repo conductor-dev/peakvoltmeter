@@ -1,9 +1,4 @@
-use conductor::{
-    core::{NodeConfig, NodeRunner},
-    prelude::{
-        NodeConfigInputPort, NodeConfigOutputPort, NodeRunnerInputPort, NodeRunnerOutputPort,
-    },
-};
+use conductor::prelude::*;
 
 #[derive(Clone)]
 pub enum TriggerMessage {

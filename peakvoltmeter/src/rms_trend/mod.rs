@@ -1,71 +1,31 @@
-use crate::{RMS_WINDOW, SAMPLE_RATE};
-use conductor::{
-    core::{NodeConfig, NodeRunner},
-    prelude::{CircularBuffer, NodeConfigInputPort, NodeRunnerInputPort},
-};
+mod chart;
+
+use crate::{PeakVoltmeterPacket, SAMPLE_RATE};
+use chart::Chart;
+use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText};
 use egui_plot::{Line, Plot, PlotPoints};
 use std::sync::{Arc, RwLock};
 
-struct RmsTrendRunner {
+pub fn rms_trend(
     data: Arc<RwLock<Vec<f64>>>,
+) -> Pipeline<NodeConfigInputPort<PeakVoltmeterPacket>, ()> {
+    let into_i32 = Intoer::<_, i32>::new();
 
-    input: NodeRunnerInputPort<i32>,
-}
+    let chart = Chart::new(data);
 
-impl NodeRunner for RmsTrendRunner {
-    fn run(self: Box<Self>) {
-        let mut rms_data = Vec::new();
+    into_i32.output.connect(&chart.input);
 
-        let mut buffer = CircularBuffer::new((RMS_WINDOW * SAMPLE_RATE as f32) as usize);
+    let input = into_i32.input.clone();
 
-        loop {
-            buffer.push(self.input.recv().unwrap());
-
-            let rms = (buffer
-                .iter()
-                .fold(0.0, |acc, &v| acc + (v as f64 * v as f64))
-                / buffer.len() as f64)
-                .sqrt();
-
-            rms_data.push(rms);
-
-            *self.data.write().unwrap() = rms_data.clone();
-        }
-    }
+    Pipeline::new(vec![Box::new(into_i32), Box::new(chart)], input, ())
 }
 
 pub struct RmsTrend {
     data: Arc<RwLock<Vec<f64>>>,
-
-    pub input: NodeConfigInputPort<i32>,
 }
 
 impl RmsTrend {
-    pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
-        Self {
-            data,
-
-            input: NodeConfigInputPort::new(),
-        }
-    }
-}
-
-impl NodeConfig for RmsTrend {
-    fn into_runner(self: Box<Self>) -> Box<dyn NodeRunner + Send> {
-        Box::new(RmsTrendRunner {
-            data: self.data,
-
-            input: self.input.into(),
-        })
-    }
-}
-
-pub struct RmsTrendUi {
-    data: Arc<RwLock<Vec<f64>>>,
-}
-
-impl RmsTrendUi {
     pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
         Self { data }
     }

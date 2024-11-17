@@ -1,59 +1,78 @@
-use crate::{FFT_SIZE, SAMPLE_RATE};
-use conductor::{
-    core::{NodeConfig, NodeRunner},
-    prelude::{NodeConfigInputPort, NodeRunnerInputPort},
-};
+mod chart;
+
+use crate::{PeakVoltmeterPacket, FFT_SIZE, SAMPLE_RATE};
+use chart::Chart;
+use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
 use egui_plot::{Line, Plot, PlotPoints};
+use rustfft::num_complex::Complex;
 use std::sync::{Arc, RwLock};
 
-struct HarmonicsRunner {
+pub fn harmonics(
     data: Arc<RwLock<Vec<f64>>>,
+) -> Pipeline<NodeConfigInputPort<PeakVoltmeterPacket>, ()> {
+    let into_f32 = Intoer::<_, f32>::new();
 
-    input: NodeRunnerInputPort<Vec<f64>>,
-}
+    let fft_buffer = Buffer::new(false);
 
-impl NodeRunner for HarmonicsRunner {
-    fn run(self: Box<Self>) {
-        loop {
-            let input = self.input.recv().unwrap();
+    let hann_window = Window::new(WindowType::Hann);
 
-            *self.data.write().unwrap() = input;
-        }
-    }
+    let fft = FFT::new();
+    let downsampler = Downsampler::new(600);
+    let lambda = Lambdaer::new(|fft: Vec<Complex<f32>>| {
+        let length = fft.len();
+
+        let fft = fft
+            .into_iter()
+            .take(length / 2)
+            .map(|value| value.norm() as f64)
+            .collect::<Vec<_>>();
+
+        let max = fft.iter().cloned().fold(f64::MIN, f64::max);
+
+        fft.into_iter()
+            .map(|value| 20.0 * (value / max).log10())
+            .collect()
+    });
+
+    let chart = Chart::new(data);
+
+    fft_buffer.size.set_initial(FFT_SIZE);
+
+    into_f32.output.connect(&fft_buffer.input);
+
+    fft_buffer.output.connect(&downsampler.input);
+
+    downsampler.output.connect(&hann_window.input);
+
+    hann_window.output.connect(&fft.input);
+
+    fft.output.connect(&lambda.input);
+
+    lambda.output.connect(&chart.input);
+
+    let input = into_f32.input.clone();
+
+    Pipeline::new(
+        vec![
+            Box::new(into_f32),
+            Box::new(fft_buffer),
+            Box::new(hann_window),
+            Box::new(fft),
+            Box::new(downsampler),
+            Box::new(lambda),
+            Box::new(chart),
+        ],
+        input,
+        (),
+    )
 }
 
 pub struct Harmonics {
     data: Arc<RwLock<Vec<f64>>>,
-
-    pub input: NodeConfigInputPort<Vec<f64>>,
 }
 
 impl Harmonics {
-    pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
-        Self {
-            data,
-
-            input: NodeConfigInputPort::new(),
-        }
-    }
-}
-
-impl NodeConfig for Harmonics {
-    fn into_runner(self: Box<Self>) -> Box<dyn NodeRunner + Send> {
-        Box::new(HarmonicsRunner {
-            data: self.data,
-
-            input: self.input.into(),
-        })
-    }
-}
-
-pub struct HarmonicsUi {
-    data: Arc<RwLock<Vec<f64>>>,
-}
-
-impl HarmonicsUi {
     pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
         Self { data }
     }

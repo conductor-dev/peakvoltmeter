@@ -1,70 +1,51 @@
-use crate::{trigger::TriggerMessage, SAMPLE_RATE};
-use conductor::{
-    core::{receive, NodeConfig, NodeRunner},
-    prelude::{NodeConfigInputPort, NodeRunnerInputPort},
-};
+mod chart;
+mod trigger;
+
+use crate::{PeakVoltmeterPacket, SAMPLE_RATE};
+use chart::Chart;
+use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
 use egui_plot::{Line, Plot, PlotPoints};
 use std::sync::{Arc, RwLock};
+use trigger::RisingEdgeTrigger;
 
-struct TimeChartRunner {
+pub fn time_chart(
     data: Arc<RwLock<Vec<f64>>>,
+) -> Pipeline<NodeConfigInputPort<PeakVoltmeterPacket>, ()> {
+    let into_i32 = Intoer::<_, i32>::new();
 
-    trigger: NodeRunnerInputPort<TriggerMessage>,
-    input: NodeRunnerInputPort<i32>,
-}
+    let trigger = RisingEdgeTrigger::new(0);
 
-impl NodeRunner for TimeChartRunner {
-    fn run(self: Box<Self>) {
-        let mut cache = Vec::new();
+    let period = Downsampler::new(3);
 
-        loop {
-            receive! {
-                (self.trigger): _msg => {
-                    *self.data.write().unwrap() = std::mem::take(&mut cache);
-                },
-                (self.input): msg => {
-                    cache.push(msg.into());
-                },
-            };
-        }
-    }
+    let buffer = Chart::new(data);
+
+    into_i32.output.connect(&trigger.input);
+    into_i32.output.connect(&buffer.input);
+
+    trigger.trigger.connect(&period.input);
+
+    period.output.connect(&buffer.trigger);
+
+    let input = into_i32.input.clone();
+
+    Pipeline::new(
+        vec![
+            Box::new(into_i32),
+            Box::new(trigger),
+            Box::new(period),
+            Box::new(buffer),
+        ],
+        input,
+        (),
+    )
 }
 
 pub struct TimeChart {
     data: Arc<RwLock<Vec<f64>>>,
-
-    pub trigger: NodeConfigInputPort<TriggerMessage>,
-    pub input: NodeConfigInputPort<i32>,
 }
 
 impl TimeChart {
-    pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
-        Self {
-            data,
-
-            trigger: NodeConfigInputPort::new(),
-            input: NodeConfigInputPort::new(),
-        }
-    }
-}
-
-impl NodeConfig for TimeChart {
-    fn into_runner(self: Box<Self>) -> Box<dyn NodeRunner + Send> {
-        Box::new(TimeChartRunner {
-            data: self.data,
-
-            trigger: self.trigger.into(),
-            input: self.input.into(),
-        })
-    }
-}
-
-pub struct TimeChartUi {
-    data: Arc<RwLock<Vec<f64>>>,
-}
-
-impl TimeChartUi {
     pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
         Self { data }
     }

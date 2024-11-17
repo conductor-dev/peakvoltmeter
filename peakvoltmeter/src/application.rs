@@ -1,17 +1,11 @@
-pub mod harmonics;
-pub mod rms_trend;
-pub mod time_chart;
-
+use crate::{harmonics::Harmonics, rms_trend::RmsTrend, time_chart::TimeChart};
 use egui::{Style, Visuals};
-use harmonics::HarmonicsUi;
-use rms_trend::RmsTrendUi;
 use std::sync::{Arc, RwLock};
-use time_chart::TimeChartUi;
 
 pub(crate) struct Application {
-    time_chart: TimeChartUi,
-    harmonics: HarmonicsUi,
-    rms_trend: RmsTrendUi,
+    time_chart: TimeChart,
+    harmonics: Harmonics,
+    rms_trend: RmsTrend,
 }
 
 impl Application {
@@ -21,9 +15,9 @@ impl Application {
         rms_trend_data: Arc<RwLock<Vec<f64>>>,
     ) -> Self {
         Self {
-            time_chart: TimeChartUi::new(time_chart_data),
-            harmonics: HarmonicsUi::new(harmonics_data),
-            rms_trend: RmsTrendUi::new(rms_trend_data),
+            time_chart: TimeChart::new(time_chart_data),
+            harmonics: Harmonics::new(harmonics_data),
+            rms_trend: RmsTrend::new(rms_trend_data),
         }
     }
 }
