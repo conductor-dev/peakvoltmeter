@@ -1,21 +1,18 @@
-use crate::{RMS_WINDOW, SAMPLE_RATE};
 use conductor::prelude::*;
 use std::sync::{Arc, RwLock};
 
 struct ChartRunner {
     data: Arc<RwLock<Vec<f64>>>,
 
-    input: NodeRunnerInputPort<i32>,
+    input: NodeRunnerInputPort<Vec<i32>>,
 }
 
 impl NodeRunner for ChartRunner {
     fn run(self: Box<Self>) {
         let mut rms_data = Vec::new();
 
-        let mut buffer = CircularBuffer::new((RMS_WINDOW * SAMPLE_RATE as f32) as usize);
-
         loop {
-            buffer.push(self.input.recv().unwrap());
+            let buffer = self.input.recv().unwrap();
 
             let rms = (buffer
                 .iter()
@@ -33,7 +30,7 @@ impl NodeRunner for ChartRunner {
 pub struct Chart {
     data: Arc<RwLock<Vec<f64>>>,
 
-    pub input: NodeConfigInputPort<i32>,
+    pub input: NodeConfigInputPort<Vec<i32>>,
 }
 
 impl Chart {

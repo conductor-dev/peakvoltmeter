@@ -1,6 +1,6 @@
 mod chart;
 
-use crate::{PeakVoltmeterPacket, SAMPLE_RATE};
+use crate::{PeakVoltmeterPacket, RMS_WINDOW, SAMPLE_RATE};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText};
@@ -12,13 +12,24 @@ pub fn rms_trend(
 ) -> Pipeline<NodeConfigInputPort<PeakVoltmeterPacket>, ()> {
     let into_i32 = Intoer::<_, i32>::new();
 
+    let buffer = Buffer::new(true);
+    buffer
+        .size
+        .set_initial((RMS_WINDOW * SAMPLE_RATE as f32) as usize);
+
     let chart = Chart::new(data);
 
-    into_i32.output.connect(&chart.input);
+    into_i32.output.connect(&buffer.input);
+
+    buffer.output.connect(&chart.input);
 
     let input = into_i32.input.clone();
 
-    Pipeline::new(vec![Box::new(into_i32), Box::new(chart)], input, ())
+    Pipeline::new(
+        vec![Box::new(into_i32), Box::new(buffer), Box::new(chart)],
+        input,
+        (),
+    )
 }
 
 pub struct RmsTrend {
