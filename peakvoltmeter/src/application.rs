@@ -1,4 +1,4 @@
-use crate::{harmonics::Harmonics, rms_trend::RmsTrend, time_chart::TimeChart};
+use crate::{harmonics::Harmonics, rms_trend::RmsTrend, time::Time, time_chart::TimeChart};
 use egui::{Style, Visuals};
 use std::sync::{Arc, RwLock};
 
@@ -6,6 +6,7 @@ pub(crate) struct Application {
     time_chart: TimeChart,
     harmonics: Harmonics,
     rms_trend: RmsTrend,
+    time: Time,
 }
 
 impl Application {
@@ -18,6 +19,7 @@ impl Application {
             time_chart: TimeChart::new(time_chart_data),
             harmonics: Harmonics::new(harmonics_data),
             rms_trend: RmsTrend::new(rms_trend_data),
+            time: Time::new(),
         }
     }
 }
@@ -31,7 +33,9 @@ impl eframe::App for Application {
         ctx.set_style(style);
 
         egui::SidePanel::right("side_panel").show(ctx, |ui| {
-            ui.label("Peak Voltmeterrrrrrrrrrrrrrrrrrrrrr");
+            self.time.ui(ui);
+
+            ui.separator();
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {

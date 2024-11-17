@@ -1,6 +1,7 @@
 mod application;
 mod harmonics;
 mod rms_trend;
+mod time;
 mod time_chart;
 
 use application::Application;
