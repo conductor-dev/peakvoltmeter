@@ -1,11 +1,7 @@
 mod chart;
 mod trigger;
 
-use crate::{
-    application::{Application, CHART_X_BOUND_MARGIN},
-    settings::TimeChartPeriods,
-    PeakVoltmeterPacket,
-};
+use crate::{application::CHART_X_BOUND_MARGIN, settings::TimeChartPeriods, PeakVoltmeterPacket};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
@@ -53,14 +49,19 @@ pub fn time_chart(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<TimeChartInputPorts, 
 
 pub struct TimeChart {
     pub data: Arc<RwLock<Vec<f64>>>,
+
+    prev_x_bound: f64,
 }
 
 impl TimeChart {
     pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
-        Self { data }
+        Self {
+            data,
+            prev_x_bound: f64::NEG_INFINITY,
+        }
     }
 
-    pub fn ui(&self, ui: &mut egui::Ui, application: &Application) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, chart_x_bound: usize, sample_rate: usize) {
         let available_size = ui.available_size();
 
         ui.allocate_ui_with_layout(
@@ -71,10 +72,8 @@ impl TimeChart {
 
                 ui.label(RichText::new("Time Chart").size(20.0).strong());
 
-                let x_bound = Self::sample_to_time(
-                    application.chart_x_bound + CHART_X_BOUND_MARGIN,
-                    application,
-                );
+                let x_bound =
+                    Self::sample_to_time(chart_x_bound + CHART_X_BOUND_MARGIN, sample_rate);
 
                 let mut plot = Plot::new("Plot")
                     .auto_bounds(Vec2b::new(false, true))
@@ -89,33 +88,23 @@ impl TimeChart {
 
                 // We need to check if the x bound has changed to reset the plot, otherwise the
                 // plot will not update the x bound.
-                let bound_changed = ui.memory_mut(|mem| {
-                    let prev_x_bound = mem
-                        .data
-                        .get_temp::<f64>("prev_x_bound".into())
-                        .unwrap_or(f64::NEG_INFINITY);
-
-                    mem.data.insert_temp("prev_x_bound".into(), x_bound);
-
-                    (prev_x_bound - x_bound).abs() > f64::EPSILON
-                });
-
-                if bound_changed {
-                    plot = plot.reset()
+                if (self.prev_x_bound - x_bound).abs() > f64::EPSILON {
+                    plot = plot.reset();
+                    self.prev_x_bound = x_bound;
                 }
 
                 plot.show(ui, |plot_ui| {
-                    plot_ui.line(self.signal(application));
+                    plot_ui.line(self.signal(sample_rate));
                 });
             },
         );
     }
 
-    fn sample_to_time(sample: usize, application: &Application) -> f64 {
-        sample as f64 * (1.0 / application.sample_rate as f64)
+    fn sample_to_time(sample: usize, sample_rate: usize) -> f64 {
+        sample as f64 * (1.0 / sample_rate as f64)
     }
 
-    fn signal(&self, application: &Application) -> Line {
+    fn signal(&self, sample_rate: usize) -> Line {
         let plot_points = PlotPoints::from_iter(
             self.data
                 .read()
@@ -123,7 +112,7 @@ impl TimeChart {
                 .clone()
                 .into_iter()
                 .enumerate()
-                .map(|(i, v)| [Self::sample_to_time(i, application), v]),
+                .map(|(i, v)| [Self::sample_to_time(i, sample_rate), v]),
         );
 
         Line::new(plot_points)

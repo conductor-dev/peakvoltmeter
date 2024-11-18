@@ -1,7 +1,6 @@
 mod chart;
 
 use crate::{
-    application::Application,
     settings::{RmsChartSize, RmsRefreshPeriod, RmsWindow, SampleRate},
     PeakVoltmeterPacket,
 };
@@ -93,20 +92,25 @@ pub fn rms_trend(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<RmsTrendInputPorts, ()
 
 pub struct RmsTrend {
     data: Arc<RwLock<Vec<f64>>>,
+
+    prev_chart_size: f64,
 }
 
 impl RmsTrend {
     pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
-        Self { data }
+        Self {
+            data,
+            prev_chart_size: f64::NEG_INFINITY,
+        }
     }
 
-    pub fn ui(&self, ui: &mut egui::Ui, application: &Application) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, rms_chart_size: usize, rms_refresh_period: f32) {
         ui.vertical_centered(|ui| {
             ui.spacing_mut().item_spacing.y = 10.0;
 
             ui.label(RichText::new("RMS Trend").size(20.0).strong());
 
-            let chart_size = application.rms_chart_size as f64;
+            let chart_size = rms_chart_size as f64;
 
             let mut plot = Plot::new("RmsTrend")
                 .auto_bounds(Vec2b::new(false, true))
@@ -120,35 +124,24 @@ impl RmsTrend {
                 .include_x(0.0)
                 .include_x(-chart_size);
 
-            // We need to check if the x bound has changed to reset the plot, otherwise the
-            // plot will not update the x bound.
-            let chart_size_changed = ui.memory_mut(|mem| {
-                let prev_rms_chart_size = mem
-                    .data
-                    .get_temp::<f64>("prev_rms_chart_size".into())
-                    .unwrap_or(f64::NEG_INFINITY);
-
-                mem.data
-                    .insert_temp("prev_rms_chart_size".into(), chart_size);
-
-                (prev_rms_chart_size - chart_size).abs() > f64::EPSILON
-            });
-
-            if chart_size_changed {
-                plot = plot.reset()
+            // We need to check if the chart size has changed to reset the plot, otherwise the
+            // plot will not update the chart size.
+            if (self.prev_chart_size - chart_size).abs() > f64::EPSILON {
+                plot = plot.reset();
+                self.prev_chart_size = chart_size;
             }
 
             plot.show(ui, |plot_ui| {
-                plot_ui.line(self.signal(application));
+                plot_ui.line(self.signal(rms_refresh_period));
             });
         });
     }
 
-    fn index_to_time(sample: usize, buffer_size: usize, application: &Application) -> f64 {
-        (sample as f64 - (buffer_size as f64 - 1.0)) * application.rms_refresh_period as f64
+    fn index_to_time(sample: usize, buffer_size: usize, rms_refresh_period: f32) -> f64 {
+        (sample as f64 - (buffer_size as f64 - 1.0)) * rms_refresh_period as f64
     }
 
-    fn signal(&self, application: &Application) -> Line {
+    fn signal(&self, rms_refresh_period: f32) -> Line {
         let buffer_size = self.data.read().unwrap().len();
 
         let plot_points = PlotPoints::from_iter(
@@ -158,7 +151,7 @@ impl RmsTrend {
                 .clone()
                 .into_iter()
                 .enumerate()
-                .map(|(i, v)| [Self::index_to_time(i, buffer_size, application), v]),
+                .map(|(i, v)| [Self::index_to_time(i, buffer_size, rms_refresh_period), v]),
         );
 
         Line::new(plot_points)

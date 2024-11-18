@@ -40,19 +40,19 @@ pub struct Application {
     settings_sender: Sender<SettingsPacket>,
 
     // general settings
-    pub sample_rate: SampleRate,
+    sample_rate: SampleRate,
 
     // time chart settings
-    pub periods: TimeChartPeriods,
-    pub chart_x_bound: usize,
+    periods: TimeChartPeriods,
+    chart_x_bound: usize,
 
     // harmonics settings
-    pub fft_size: FftSize,
+    fft_size: FftSize,
 
     // rms trend settings
-    pub rms_window: RmsWindow,
-    pub rms_chart_size: RmsChartSize,
-    pub rms_refresh_period: RmsRefreshPeriod,
+    rms_window: RmsWindow,
+    rms_chart_size: RmsChartSize,
+    rms_refresh_period: RmsRefreshPeriod,
 }
 
 impl Application {
@@ -112,15 +112,16 @@ impl Application {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
-                self.time_chart.ui(ui, self);
+                self.time_chart.ui(ui, self.chart_x_bound, self.sample_rate);
 
                 ui.separator();
 
-                self.harmonics.ui(ui, self);
+                self.harmonics.ui(ui, self.fft_size, self.sample_rate);
 
                 ui.separator();
 
-                self.rms_trend.ui(ui, self);
+                self.rms_trend
+                    .ui(ui, self.rms_chart_size, self.rms_refresh_period);
             });
 
             ui.ctx().request_repaint();
@@ -234,10 +235,8 @@ impl eframe::App for Application {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.add_space(3.0);
             ui.horizontal(|ui| {
-                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                    ui.selectable_value(&mut self.panel, Panel::Charts, "Charts");
-                    ui.selectable_value(&mut self.panel, Panel::Settings, "Settings");
-                });
+                ui.selectable_value(&mut self.panel, Panel::Charts, "Charts");
+                ui.selectable_value(&mut self.panel, Panel::Settings, "Settings");
 
                 ui.add_space(ui.available_width());
 

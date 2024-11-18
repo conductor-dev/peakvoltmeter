@@ -1,6 +1,6 @@
 mod chart;
 
-use crate::{application::Application, settings::FftSize, PeakVoltmeterPacket};
+use crate::{settings::FftSize, PeakVoltmeterPacket};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
@@ -84,7 +84,7 @@ impl Harmonics {
         Self { data }
     }
 
-    pub fn ui(&self, ui: &mut egui::Ui, application: &Application) {
+    pub fn ui(&self, ui: &mut egui::Ui, fft_size: usize, sample_rate: usize) {
         let available_size = ui.available_size();
 
         ui.allocate_ui_with_layout(
@@ -106,23 +106,20 @@ impl Harmonics {
                     .include_y(0.0)
                     .include_y(-200)
                     .include_x(0.0)
-                    .include_x(Self::y_to_hz(
-                        application.fft_size as f64 / 2.0,
-                        application,
-                    ));
+                    .include_x(Self::y_to_hz(fft_size as f64 / 2.0, fft_size, sample_rate));
 
                 plot.show(ui, |plot_ui| {
-                    plot_ui.line(self.signal(application));
+                    plot_ui.line(self.signal(fft_size, sample_rate));
                 });
             },
         );
     }
 
-    fn y_to_hz(y: f64, application: &Application) -> f64 {
-        y * (application.sample_rate as f64 / application.fft_size as f64)
+    fn y_to_hz(y: f64, fft_size: usize, sample_rate: usize) -> f64 {
+        y * (sample_rate as f64 / fft_size as f64)
     }
 
-    fn signal(&self, application: &Application) -> Line {
+    fn signal(&self, fft_size: usize, sample_rate: usize) -> Line {
         let plot_points = PlotPoints::from_iter(
             self.data
                 .read()
@@ -130,7 +127,7 @@ impl Harmonics {
                 .clone()
                 .into_iter()
                 .enumerate()
-                .map(|(i, v)| [Self::y_to_hz(i as f64, application), v]),
+                .map(|(i, v)| [Self::y_to_hz(i as f64, fft_size, sample_rate), v]),
         );
 
         Line::new(plot_points)
