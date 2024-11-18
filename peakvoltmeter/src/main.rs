@@ -63,9 +63,17 @@ fn create_pipeline(
     let rms_trend = rms_trend(rms_trend_buffer);
 
     settings.sample_rate.connect(&rms_trend.input.sample_rate);
-    settings.periods.connect(&time_chart.input.periods);
+    settings
+        .time_chart_periods
+        .connect(&time_chart.input.periods);
     settings.fft_size.connect(&harmonics.input.fft_size);
     settings.rms_window.connect(&rms_trend.input.rms_window);
+    settings
+        .rms_chart_size
+        .connect(&rms_trend.input.rms_chart_size);
+    settings
+        .rms_refresh_period
+        .connect(&rms_trend.input.rms_refresh_period);
 
     udp_receiver.output.connect(&time_chart.input.data);
     udp_receiver.output.connect(&harmonics.input.data);

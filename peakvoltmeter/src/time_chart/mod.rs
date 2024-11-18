@@ -3,7 +3,7 @@ mod trigger;
 
 use crate::{
     application::{Application, CHART_X_BOUND_MARGIN},
-    settings::Periods,
+    settings::TimeChartPeriods,
     PeakVoltmeterPacket,
 };
 use chart::Chart;
@@ -15,7 +15,7 @@ use trigger::RisingEdgeTrigger;
 
 pub struct TimeChartInputPorts {
     pub data: NodeConfigInputPort<PeakVoltmeterPacket>,
-    pub periods: NodeConfigInputPort<Periods>,
+    pub periods: NodeConfigInputPort<TimeChartPeriods>,
 }
 
 pub fn time_chart(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<TimeChartInputPorts, ()> {

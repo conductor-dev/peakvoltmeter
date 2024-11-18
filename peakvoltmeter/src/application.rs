@@ -2,7 +2,10 @@ use crate::{
     harmonics::Harmonics,
     peak_sqrt::PeakSqrtChart,
     rms_trend::RmsTrend,
-    settings::{FftSize, Periods, RmsWindow, SampleRate, SettingsPacket},
+    settings::{
+        FftSize, RmsChartSize, RmsRefreshPeriod, RmsWindow, SampleRate, SettingsPacket,
+        TimeChartPeriods,
+    },
     time::Time,
     time_chart::TimeChart,
 };
@@ -10,10 +13,12 @@ use egui::{Align, Layout, RichText, Style, Visuals};
 use std::sync::{mpsc::Sender, Arc, RwLock};
 
 const SAMPLE_RATE_DEFAULT: SampleRate = 3125;
-const PERIODS_DEFAULT: Periods = 3;
+const PERIODS_DEFAULT: TimeChartPeriods = 3;
 const CHART_X_BOUND_DEFAULT: usize = 185;
 const FFT_SIZE_DEFAULT: FftSize = 2048;
 const RMS_WINDOW_DEFAULT: RmsWindow = 0.5;
+const RMS_CHART_SIZE_WINDOW_DEFAULT: usize = 180;
+const RMS_REFRESH_PERIOD_DEFAULT: RmsRefreshPeriod = 0.5;
 
 pub const CHART_X_BOUND_MARGIN: usize = 10;
 
@@ -38,14 +43,16 @@ pub struct Application {
     pub sample_rate: SampleRate,
 
     // time chart settings
-    pub periods: Periods,
+    pub periods: TimeChartPeriods,
     pub chart_x_bound: usize,
 
     // harmonics settings
     pub fft_size: FftSize,
 
     // rms trend settings
-    pub rms_window: f32,
+    pub rms_window: RmsWindow,
+    pub rms_chart_size: RmsChartSize,
+    pub rms_refresh_period: RmsRefreshPeriod,
 }
 
 impl Application {
@@ -61,13 +68,19 @@ impl Application {
             .send(SettingsPacket::SampleRate(SAMPLE_RATE_DEFAULT))
             .unwrap();
         settings_sender
-            .send(SettingsPacket::Periods(PERIODS_DEFAULT))
+            .send(SettingsPacket::TimeChartPeriods(PERIODS_DEFAULT))
             .unwrap();
         settings_sender
             .send(SettingsPacket::FftSize(FFT_SIZE_DEFAULT))
             .unwrap();
         settings_sender
             .send(SettingsPacket::RmsWindow(RMS_WINDOW_DEFAULT))
+            .unwrap();
+        settings_sender
+            .send(SettingsPacket::RmsChartSize(RMS_CHART_SIZE_WINDOW_DEFAULT))
+            .unwrap();
+        settings_sender
+            .send(SettingsPacket::RmsRefreshPeriod(RMS_REFRESH_PERIOD_DEFAULT))
             .unwrap();
 
         Self {
@@ -83,6 +96,8 @@ impl Application {
             chart_x_bound: CHART_X_BOUND_DEFAULT,
             fft_size: FFT_SIZE_DEFAULT,
             rms_window: RMS_WINDOW_DEFAULT,
+            rms_chart_size: RMS_CHART_SIZE_WINDOW_DEFAULT,
+            rms_refresh_period: RMS_REFRESH_PERIOD_DEFAULT,
         }
     }
 
@@ -119,7 +134,7 @@ impl Application {
             ui.label(RichText::new("General Settings").size(20.0).strong());
 
             ui.horizontal(|ui| {
-                ui.label("Sample Rate:");
+                ui.label("Signal Sample Rate:");
                 if ui
                     .add(egui::Slider::new(&mut self.sample_rate, 1..=10000).text("Hz"))
                     .changed()
@@ -141,7 +156,7 @@ impl Application {
                     .changed()
                 {
                     self.settings_sender
-                        .send(SettingsPacket::Periods(self.periods))
+                        .send(SettingsPacket::TimeChartPeriods(self.periods))
                         .unwrap();
                 }
             });
@@ -177,6 +192,33 @@ impl Application {
                         .unwrap();
                 }
             });
+
+            ui.horizontal(|ui| {
+                ui.label("RMS Chart Size:");
+                if ui
+                    .add(egui::Slider::new(&mut self.rms_chart_size, 10..=300).text("seconds"))
+                    .changed()
+                {
+                    self.settings_sender
+                        .send(SettingsPacket::RmsChartSize(self.rms_chart_size))
+                        .unwrap();
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("RMS Refresh Period:");
+                if ui
+                    .add(
+                        egui::Slider::new(&mut self.rms_refresh_period, 0.01..=10.0)
+                            .text("seconds"),
+                    )
+                    .changed()
+                {
+                    self.settings_sender
+                        .send(SettingsPacket::RmsRefreshPeriod(self.rms_refresh_period))
+                        .unwrap();
+                }
+            });
         });
     }
 }
@@ -200,9 +242,8 @@ impl eframe::App for Application {
                 ui.add_space(ui.available_width());
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui.button("Reset Bounds").clicked() {
+                    if ui.button("Reset Time Chart Bounds").clicked() {
                         self.chart_x_bound = self.time_chart.data.read().unwrap().len();
-                        println!("Reset bounds to {}", self.chart_x_bound);
                     }
                 });
             });
