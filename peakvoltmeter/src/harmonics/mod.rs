@@ -21,7 +21,10 @@ pub fn harmonics(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<HarmonicsInputPorts, (
     let hann_window = Window::new(WindowType::Hann);
 
     let fft = FFT::new();
-    let downsampler = Downsampler::new(600);
+
+    let downsampler = Downsampler::new();
+    downsampler.factor.set_initial(600);
+
     let lambda = Lambdaer::new(|fft: Vec<Complex<f32>>| {
         let length = fft.len();
 

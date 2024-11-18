@@ -1,5 +1,6 @@
 mod application;
 mod harmonics;
+mod peak_sqrt;
 mod rms_trend;
 mod settings;
 mod time;
@@ -8,7 +9,7 @@ mod time_chart;
 use application::Application;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use core::f64;
-use egui::ViewportBuilder;
+// use egui::ViewportBuilder;
 use harmonics::harmonics;
 use rms_trend::rms_trend;
 use settings::{Settings, SettingsPacket};
@@ -62,10 +63,11 @@ fn create_pipeline(
     let rms_trend = rms_trend(rms_trend_buffer);
 
     settings.sample_rate.connect(&rms_trend.input.sample_rate);
+    settings.periods.connect(&time_chart.input.periods);
     settings.fft_size.connect(&harmonics.input.fft_size);
     settings.rms_window.connect(&rms_trend.input.rms_window);
 
-    udp_receiver.output.connect(&time_chart.input);
+    udp_receiver.output.connect(&time_chart.input.data);
     udp_receiver.output.connect(&harmonics.input.data);
     udp_receiver.output.connect(&rms_trend.input.data);
 
@@ -76,6 +78,7 @@ fn main() {
     let time_chart_buffer = Arc::new(RwLock::new(Vec::new()));
     let harmonics_buffer = Arc::new(RwLock::new(Vec::new()));
     let rms_trend_buffer = Arc::new(RwLock::new(Vec::new()));
+    let peak_sqrt_buffer = Arc::new(RwLock::new(Vec::new()));
 
     let (sender, receiver) = channel();
 
@@ -93,10 +96,10 @@ fn main() {
         .run();
     });
 
-    let viewport = ViewportBuilder::default().with_fullscreen(true);
+    // let viewport = ViewportBuilder::default().with_fullscreen(true);
 
     let options = eframe::NativeOptions {
-        viewport,
+        // viewport,
         ..Default::default()
     };
 
@@ -108,6 +111,7 @@ fn main() {
                 time_chart_buffer,
                 harmonics_buffer,
                 rms_trend_buffer,
+                peak_sqrt_buffer,
                 sender,
             )))
         }),

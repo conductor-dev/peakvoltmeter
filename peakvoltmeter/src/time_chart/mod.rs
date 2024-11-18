@@ -1,7 +1,11 @@
 mod chart;
 mod trigger;
 
-use crate::{application::Application, PeakVoltmeterPacket};
+use crate::{
+    application::{Application, CHART_X_BOUND_MARGIN},
+    settings::Periods,
+    PeakVoltmeterPacket,
+};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
@@ -9,14 +13,17 @@ use egui_plot::{Line, Plot, PlotPoints};
 use std::sync::{Arc, RwLock};
 use trigger::RisingEdgeTrigger;
 
-pub fn time_chart(
-    data: Arc<RwLock<Vec<f64>>>,
-) -> Pipeline<NodeConfigInputPort<PeakVoltmeterPacket>, ()> {
+pub struct TimeChartInputPorts {
+    pub data: NodeConfigInputPort<PeakVoltmeterPacket>,
+    pub periods: NodeConfigInputPort<Periods>,
+}
+
+pub fn time_chart(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<TimeChartInputPorts, ()> {
     let into_i32 = Intoer::<_, i32>::new();
 
     let trigger = RisingEdgeTrigger::new(0);
 
-    let period = Downsampler::new(3);
+    let period = Downsampler::new();
 
     let buffer = Chart::new(data);
 
@@ -27,7 +34,10 @@ pub fn time_chart(
 
     period.output.connect(&buffer.trigger);
 
-    let input = into_i32.input.clone();
+    let input_ports = TimeChartInputPorts {
+        data: into_i32.input.clone(),
+        periods: period.factor.clone(),
+    };
 
     Pipeline::new(
         vec![
@@ -36,13 +46,13 @@ pub fn time_chart(
             Box::new(period),
             Box::new(buffer),
         ],
-        input,
+        input_ports,
         (),
     )
 }
 
 pub struct TimeChart {
-    data: Arc<RwLock<Vec<f64>>>,
+    pub data: Arc<RwLock<Vec<f64>>>,
 }
 
 impl TimeChart {
@@ -61,7 +71,12 @@ impl TimeChart {
 
                 ui.label(RichText::new("Time Chart").size(20.0).strong());
 
-                let plot = Plot::new("Plot")
+                let x_bound = Self::sample_to_time(
+                    application.chart_x_bound + CHART_X_BOUND_MARGIN,
+                    application,
+                );
+
+                let mut plot = Plot::new("Plot")
                     .auto_bounds(Vec2b::new(false, true))
                     .y_axis_label("Voltage")
                     .x_axis_label("Time")
@@ -70,7 +85,24 @@ impl TimeChart {
                     .allow_zoom(false)
                     .allow_scroll(false)
                     .include_x(0.0)
-                    .include_x(Self::sample_to_time(200, application));
+                    .include_x(x_bound);
+
+                // We need to check if the x bound has changed to reset the plot, otherwise the
+                // plot will not update the x bound.
+                let bound_changed = ui.memory_mut(|mem| {
+                    let prev_x_bound = mem
+                        .data
+                        .get_temp::<f64>("prev_x_bound".into())
+                        .unwrap_or(f64::NEG_INFINITY);
+
+                    mem.data.insert_temp("prev_x_bound".into(), x_bound);
+
+                    (prev_x_bound - x_bound).abs() > f64::EPSILON
+                });
+
+                if bound_changed {
+                    plot = plot.reset()
+                }
 
                 plot.show(ui, |plot_ui| {
                     plot_ui.line(self.signal(application));

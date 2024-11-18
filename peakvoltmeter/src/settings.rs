@@ -2,12 +2,21 @@ use conductor::prelude::*;
 use std::sync::mpsc::Receiver;
 
 pub type SampleRate = usize;
+pub type Periods = usize;
 pub type FftSize = usize;
 pub type RmsWindow = f32;
 
 pub enum SettingsPacket {
+    // general settings
     SampleRate(SampleRate),
+
+    // time chart settings
+    Periods(Periods),
+
+    // harmonics settings
     FftSize(FftSize),
+
+    // rms trend settings
     RmsWindow(RmsWindow),
 }
 
@@ -15,6 +24,7 @@ struct SettingsRunner {
     receiver: Receiver<SettingsPacket>,
 
     sample_rate: NodeRunnerOutputPort<SampleRate>,
+    periods: NodeRunnerOutputPort<Periods>,
     fft_size: NodeRunnerOutputPort<FftSize>,
     rms_window: NodeRunnerOutputPort<RmsWindow>,
 }
@@ -27,6 +37,9 @@ impl NodeRunner for SettingsRunner {
             match value {
                 SettingsPacket::SampleRate(sample_rate) => {
                     self.sample_rate.send(&sample_rate);
+                }
+                SettingsPacket::Periods(periods) => {
+                    self.periods.send(&periods);
                 }
                 SettingsPacket::FftSize(fft_size) => {
                     self.fft_size.send(&fft_size);
@@ -43,6 +56,7 @@ pub struct Settings {
     receiver: Receiver<SettingsPacket>,
 
     pub sample_rate: NodeConfigOutputPort<SampleRate>,
+    pub periods: NodeConfigOutputPort<Periods>,
     pub fft_size: NodeConfigOutputPort<FftSize>,
     pub rms_window: NodeConfigOutputPort<RmsWindow>,
 }
@@ -53,6 +67,7 @@ impl Settings {
             receiver,
 
             sample_rate: NodeConfigOutputPort::new(),
+            periods: NodeConfigOutputPort::new(),
             fft_size: NodeConfigOutputPort::new(),
             rms_window: NodeConfigOutputPort::new(),
         }
@@ -64,6 +79,7 @@ impl NodeConfig for Settings {
         Box::new(SettingsRunner {
             receiver: self.receiver,
             sample_rate: self.sample_rate.into(),
+            periods: self.periods.into(),
             fft_size: self.fft_size.into(),
             rms_window: self.rms_window.into(),
         })
