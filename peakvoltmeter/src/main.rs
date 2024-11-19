@@ -2,6 +2,7 @@ mod application;
 mod harmonics;
 mod peak_sqrt_widget;
 mod rms_trend;
+mod rms_widget;
 mod settings;
 mod time;
 mod time_chart;

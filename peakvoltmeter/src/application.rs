@@ -2,6 +2,7 @@ use crate::{
     harmonics::Harmonics,
     peak_sqrt_widget::PeakSqrtChart,
     rms_trend::RmsTrend,
+    rms_widget::RmsWidget,
     settings::{
         ChartSize, FftSize, RefreshPeriod, RmsWindow, SampleRate, SettingsPacket, TimeChartPeriods,
     },
@@ -33,6 +34,7 @@ pub struct Application {
     rms_trend: RmsTrend,
     time: Time,
     peak_sqrt_chart: PeakSqrtChart,
+    rms_widget: RmsWidget,
 
     panel: Panel,
 
@@ -85,8 +87,9 @@ impl Application {
         Self {
             time_chart: TimeChart::new(time_chart_data),
             harmonics: Harmonics::new(harmonics_data),
-            rms_trend: RmsTrend::new(rms_trend_data),
+            rms_trend: RmsTrend::new(rms_trend_data.clone()),
             peak_sqrt_chart: PeakSqrtChart::new(peak_sqrt_data),
+            rms_widget: RmsWidget::new(rms_trend_data),
             time: Time::new(),
             panel: Panel::Charts,
             settings_sender,
@@ -112,6 +115,10 @@ impl Application {
                 ui.separator();
 
                 self.peak_sqrt_chart.ui(ui, self.chart_size);
+
+                ui.separator();
+
+                self.rms_widget.ui(ui, self.chart_size);
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
