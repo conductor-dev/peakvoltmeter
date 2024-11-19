@@ -1,7 +1,7 @@
 mod chart;
 
 use crate::{
-    settings::{RmsChartSize, RmsRefreshPeriod, RmsWindow, SampleRate},
+    settings::{ChartSize, RefreshPeriod, RmsWindow, SampleRate},
     PeakVoltmeterPacket,
 };
 use chart::Chart;
@@ -13,15 +13,21 @@ use std::sync::{Arc, RwLock};
 pub struct RmsTrendInputPorts {
     pub data: NodeConfigInputPort<PeakVoltmeterPacket>,
     pub sample_rate: NodeConfigInputPort<SampleRate>,
-    pub rms_window: NodeConfigInputPort<RmsWindow>,
-    pub rms_chart_size: NodeConfigInputPort<RmsChartSize>,
+    pub window: NodeConfigInputPort<RmsWindow>,
+    pub chart_size: NodeConfigInputPort<ChartSize>,
     pub rms_refresh_period: (
-        NodeConfigInputPort<RmsRefreshPeriod>,
-        NodeConfigInputPort<RmsRefreshPeriod>,
+        NodeConfigInputPort<RefreshPeriod>,
+        NodeConfigInputPort<RefreshPeriod>,
     ),
 }
 
-pub fn rms_trend(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<RmsTrendInputPorts, ()> {
+pub struct RmsTrendOutputPorts {
+    pub windowed_downsampled_data: NodeConfigOutputPort<Vec<i32>>,
+}
+
+pub fn rms_trend(
+    data: Arc<RwLock<Vec<[f64; 2]>>>,
+) -> Pipeline<RmsTrendInputPorts, RmsTrendOutputPorts> {
     let into_i32 = Intoer::<_, i32>::new();
 
     let sample_rate_to_f32 = Lambdaer::new(|value: usize| value as f32);
@@ -65,9 +71,13 @@ pub fn rms_trend(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<RmsTrendInputPort
     let input_ports = RmsTrendInputPorts {
         data: into_i32.input.clone(),
         sample_rate: sample_rate_to_f32.input.clone(),
-        rms_window: buffer_size.input1.clone(),
-        rms_chart_size: chart.chart_size.clone(),
+        window: buffer_size.input1.clone(),
+        chart_size: chart.chart_size.clone(),
         rms_refresh_period: (refresh_factor.input1.clone(), chart.refresh_period.clone()),
+    };
+
+    let output_ports = RmsTrendOutputPorts {
+        windowed_downsampled_data: refresh_period_downsampler.output.clone(),
     };
 
     Pipeline::new(
@@ -83,7 +93,7 @@ pub fn rms_trend(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<RmsTrendInputPort
             Box::new(chart),
         ],
         input_ports,
-        (),
+        output_ports,
     )
 }
 
@@ -101,13 +111,13 @@ impl RmsTrend {
         }
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, rms_chart_size: usize) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, chart_size: usize) {
         ui.vertical_centered(|ui| {
             ui.spacing_mut().item_spacing.y = 10.0;
 
             ui.label(RichText::new("RMS Trend").size(20.0).strong());
 
-            let chart_size = rms_chart_size as f64;
+            let chart_size = chart_size as f64;
 
             let mut plot = Plot::new("RmsTrend")
                 .auto_bounds(Vec2b::new(false, true))

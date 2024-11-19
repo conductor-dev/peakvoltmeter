@@ -1,10 +1,9 @@
 use crate::{
     harmonics::Harmonics,
-    peak_sqrt::PeakSqrtChart,
+    peak_sqrt_widget::PeakSqrtChart,
     rms_trend::RmsTrend,
     settings::{
-        FftSize, RmsChartSize, RmsRefreshPeriod, RmsWindow, SampleRate, SettingsPacket,
-        TimeChartPeriods,
+        ChartSize, FftSize, RefreshPeriod, RmsWindow, SampleRate, SettingsPacket, TimeChartPeriods,
     },
     time::Time,
     time_chart::TimeChart,
@@ -16,9 +15,9 @@ const SAMPLE_RATE_DEFAULT: SampleRate = 3125;
 const PERIODS_DEFAULT: TimeChartPeriods = 3;
 const CHART_X_BOUND_DEFAULT: usize = 185;
 const FFT_SIZE_DEFAULT: FftSize = 2048;
-const RMS_WINDOW_DEFAULT: RmsWindow = 0.5;
-const RMS_CHART_SIZE_WINDOW_DEFAULT: usize = 180;
-const RMS_REFRESH_PERIOD_DEFAULT: RmsRefreshPeriod = 0.5;
+const WINDOW_DEFAULT: RmsWindow = 0.5;
+const CHART_SIZE_WINDOW_DEFAULT: usize = 180;
+const REFRESH_PERIOD_DEFAULT: RefreshPeriod = 0.5;
 
 pub const CHART_X_BOUND_MARGIN: usize = 10;
 
@@ -49,10 +48,10 @@ pub struct Application {
     // harmonics settings
     fft_size: FftSize,
 
-    // rms trend settings
-    rms_window: RmsWindow,
-    rms_chart_size: RmsChartSize,
-    rms_refresh_period: RmsRefreshPeriod,
+    // rms trend and peak sqrt settings
+    window: RmsWindow,
+    chart_size: ChartSize,
+    refresh_period: RefreshPeriod,
 }
 
 impl Application {
@@ -74,13 +73,13 @@ impl Application {
             .send(SettingsPacket::FftSize(FFT_SIZE_DEFAULT))
             .unwrap();
         settings_sender
-            .send(SettingsPacket::RmsWindow(RMS_WINDOW_DEFAULT))
+            .send(SettingsPacket::Window(WINDOW_DEFAULT))
             .unwrap();
         settings_sender
-            .send(SettingsPacket::RmsChartSize(RMS_CHART_SIZE_WINDOW_DEFAULT))
+            .send(SettingsPacket::ChartSize(CHART_SIZE_WINDOW_DEFAULT))
             .unwrap();
         settings_sender
-            .send(SettingsPacket::RmsRefreshPeriod(RMS_REFRESH_PERIOD_DEFAULT))
+            .send(SettingsPacket::RefreshPeriod(REFRESH_PERIOD_DEFAULT))
             .unwrap();
 
         Self {
@@ -95,20 +94,25 @@ impl Application {
             periods: PERIODS_DEFAULT,
             chart_x_bound: CHART_X_BOUND_DEFAULT,
             fft_size: FFT_SIZE_DEFAULT,
-            rms_window: RMS_WINDOW_DEFAULT,
-            rms_chart_size: RMS_CHART_SIZE_WINDOW_DEFAULT,
-            rms_refresh_period: RMS_REFRESH_PERIOD_DEFAULT,
+            window: WINDOW_DEFAULT,
+            chart_size: CHART_SIZE_WINDOW_DEFAULT,
+            refresh_period: REFRESH_PERIOD_DEFAULT,
         }
     }
 
     fn charts(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::right("side_panel").show(ctx, |ui| {
-            self.time.ui(ui);
+        let available_size = ctx.available_rect().size();
 
-            ui.separator();
+        egui::SidePanel::right("side_panel")
+            .resizable(false)
+            .exact_width(available_size.x / 5.0)
+            .show(ctx, |ui| {
+                self.time.ui(ui);
 
-            self.peak_sqrt_chart.ui(ui, self);
-        });
+                ui.separator();
+
+                self.peak_sqrt_chart.ui(ui, self.chart_size);
+            });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
@@ -120,7 +124,7 @@ impl Application {
 
                 ui.separator();
 
-                self.rms_trend.ui(ui, self.rms_chart_size);
+                self.rms_trend.ui(ui, self.chart_size);
             });
 
             ui.ctx().request_repaint();
@@ -179,43 +183,44 @@ impl Application {
 
             ui.separator();
 
-            ui.label(RichText::new("RMS Trend Settings").size(20.0).strong());
+            ui.label(
+                RichText::new("RMS Trend and Peak Sqrt Settings")
+                    .size(20.0)
+                    .strong(),
+            );
 
             ui.horizontal(|ui| {
-                ui.label("RMS Window:");
+                ui.label("Window Size:");
                 if ui
-                    .add(egui::Slider::new(&mut self.rms_window, 0.01..=12.0).text("seconds"))
+                    .add(egui::Slider::new(&mut self.window, 0.01..=12.0).text("seconds"))
                     .changed()
                 {
                     self.settings_sender
-                        .send(SettingsPacket::RmsWindow(self.rms_window))
+                        .send(SettingsPacket::Window(self.window))
                         .unwrap();
                 }
             });
 
             ui.horizontal(|ui| {
-                ui.label("RMS Chart Size:");
+                ui.label("Chart Size:");
                 if ui
-                    .add(egui::Slider::new(&mut self.rms_chart_size, 10..=300).text("seconds"))
+                    .add(egui::Slider::new(&mut self.chart_size, 10..=300).text("seconds"))
                     .changed()
                 {
                     self.settings_sender
-                        .send(SettingsPacket::RmsChartSize(self.rms_chart_size))
+                        .send(SettingsPacket::ChartSize(self.chart_size))
                         .unwrap();
                 }
             });
 
             ui.horizontal(|ui| {
-                ui.label("RMS Refresh Period:");
+                ui.label("Refresh Period:");
                 if ui
-                    .add(
-                        egui::Slider::new(&mut self.rms_refresh_period, 0.01..=10.0)
-                            .text("seconds"),
-                    )
+                    .add(egui::Slider::new(&mut self.refresh_period, 0.01..=10.0).text("seconds"))
                     .changed()
                 {
                     self.settings_sender
-                        .send(SettingsPacket::RmsRefreshPeriod(self.rms_refresh_period))
+                        .send(SettingsPacket::RefreshPeriod(self.refresh_period))
                         .unwrap();
                 }
             });

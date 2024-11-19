@@ -1,6 +1,6 @@
 mod application;
 mod harmonics;
-mod peak_sqrt;
+mod peak_sqrt_widget;
 mod rms_trend;
 mod settings;
 mod time;
@@ -9,6 +9,7 @@ mod time_chart;
 use application::Application;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use core::f64;
+use peak_sqrt_widget::peak_sqrt;
 // use egui::ViewportBuilder;
 use harmonics::harmonics;
 use rms_trend::rms_trend;
@@ -52,6 +53,7 @@ fn create_pipeline(
     time_chart_buffer: Arc<RwLock<Vec<[f64; 2]>>>,
     harmonics_buffer: Arc<RwLock<Vec<[f64; 2]>>>,
     rms_trend_buffer: Arc<RwLock<Vec<[f64; 2]>>>,
+    peak_sqrt_buffer: Arc<RwLock<Vec<[f64; 2]>>>,
     receiver: Receiver<SettingsPacket>,
 ) -> Pipeline<(), ()> {
     let settings = Settings::new(receiver);
@@ -61,6 +63,7 @@ fn create_pipeline(
     let time_chart = time_chart(time_chart_buffer);
     let harmonics = harmonics(harmonics_buffer);
     let rms_trend = rms_trend(rms_trend_buffer);
+    let peak_sqrt = peak_sqrt(peak_sqrt_buffer);
 
     settings.sample_rate.connect(&time_chart.input.sample_rate);
     settings.sample_rate.connect(&harmonics.input.sample_rate);
@@ -73,11 +76,10 @@ fn create_pipeline(
     settings.fft_size.connect(&harmonics.input.fft_size.0);
     settings.fft_size.connect(&harmonics.input.fft_size.1);
 
-    settings.rms_window.connect(&rms_trend.input.rms_window);
+    settings.window.connect(&rms_trend.input.window);
 
-    settings
-        .rms_chart_size
-        .connect(&rms_trend.input.rms_chart_size);
+    settings.chart_size.connect(&rms_trend.input.chart_size);
+    settings.chart_size.connect(&peak_sqrt.input.chart_size);
 
     settings
         .rms_refresh_period
@@ -85,12 +87,27 @@ fn create_pipeline(
     settings
         .rms_refresh_period
         .connect(&rms_trend.input.rms_refresh_period.1);
+    settings
+        .rms_refresh_period
+        .connect(&peak_sqrt.input.refresh_period);
 
     udp_receiver.output.connect(&time_chart.input.data);
     udp_receiver.output.connect(&harmonics.input.data);
     udp_receiver.output.connect(&rms_trend.input.data);
 
-    pipeline!(settings, udp_receiver, time_chart, harmonics, rms_trend)
+    rms_trend
+        .output
+        .windowed_downsampled_data
+        .connect(&peak_sqrt.input.windowed_downsampled_data);
+
+    pipeline!(
+        settings,
+        udp_receiver,
+        time_chart,
+        harmonics,
+        rms_trend,
+        peak_sqrt
+    )
 }
 
 fn main() {
@@ -104,12 +121,14 @@ fn main() {
     let time_chart_buffer_cloned = time_chart_buffer.clone();
     let harmonics_buffer_cloned = harmonics_buffer.clone();
     let rms_trend_buffer_cloned = rms_trend_buffer.clone();
+    let peak_sqrt_buffer_cloned = peak_sqrt_buffer.clone();
 
     thread::spawn(move || {
         create_pipeline(
             time_chart_buffer_cloned,
             harmonics_buffer_cloned,
             rms_trend_buffer_cloned,
+            peak_sqrt_buffer_cloned,
             receiver,
         )
         .run();

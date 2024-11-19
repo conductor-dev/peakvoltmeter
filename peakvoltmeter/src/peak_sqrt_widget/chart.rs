@@ -1,11 +1,12 @@
 use crate::settings::{ChartSize, RefreshPeriod};
+
 use conductor::prelude::*;
 use std::sync::{Arc, RwLock};
 
 struct ChartRunner {
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 
-    input: NodeRunnerInputPort<Vec<i32>>,
+    windowed_downsampled_data: NodeRunnerInputPort<Vec<i32>>,
 
     chart_size: NodeRunnerInputPort<ChartSize>,
     refresh_period: NodeRunnerInputPort<RefreshPeriod>,
@@ -24,35 +25,33 @@ impl NodeRunner for ChartRunner {
         let mut chart_size = self.chart_size.recv().unwrap();
         let mut refresh_period = self.refresh_period.recv().unwrap();
 
-        let mut rms_data = CircularBuffer::new(calculate_buffer_size(chart_size, refresh_period));
+        let mut peak_sqrt_data =
+            CircularBuffer::new(calculate_buffer_size(chart_size, refresh_period));
 
         loop {
             receive! {
-                (self.input): buffer => {
-                    let rms = (buffer
-                        .iter()
-                        .fold(0.0, |acc, &v| acc + (v as f64 * v as f64)) / buffer.len() as f64)
-                        .sqrt();
+                (self.windowed_downsampled_data): buffer => {
+                    let peak = buffer.into_iter().max().unwrap();
 
-                    rms_data.push(rms);
+                    peak_sqrt_data.push((peak as f64) / 2.0_f64.sqrt());
 
-                    *self.data.write().unwrap() = rms_data
+                    *self.data.write().unwrap() = peak_sqrt_data
                         .clone()
                         .into_iter()
                         .enumerate()
-                        .map(|(i, v)| [index_to_time(i, rms_data.len(), refresh_period), v])
+                        .map(|(i, v)| [index_to_time(i, peak_sqrt_data.len(), refresh_period), v])
                         .collect();
                 },
                 (self.chart_size): new_chart_size => {
                     chart_size = new_chart_size;
 
-                    rms_data.resize(calculate_buffer_size(chart_size, refresh_period));
+                    peak_sqrt_data.resize(calculate_buffer_size(chart_size, refresh_period));
                 },
                 (self.refresh_period): new_refresh_period => {
                     refresh_period = new_refresh_period;
 
                     // previous data is invalidated so new buffer must be created
-                    rms_data = CircularBuffer::new(calculate_buffer_size(chart_size, refresh_period));
+                    peak_sqrt_data = CircularBuffer::new(calculate_buffer_size(chart_size, refresh_period));
                 },
             };
         }
@@ -62,7 +61,7 @@ impl NodeRunner for ChartRunner {
 pub struct Chart {
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 
-    pub input: NodeConfigInputPort<Vec<i32>>,
+    pub windowed_downsampled_data: NodeConfigInputPort<Vec<i32>>,
 
     pub chart_size: NodeConfigInputPort<ChartSize>,
     pub refresh_period: NodeConfigInputPort<RefreshPeriod>,
@@ -73,7 +72,7 @@ impl Chart {
         Self {
             data,
 
-            input: NodeConfigInputPort::new(),
+            windowed_downsampled_data: NodeConfigInputPort::new(),
 
             chart_size: NodeConfigInputPort::new(),
             refresh_period: NodeConfigInputPort::new(),
@@ -86,7 +85,7 @@ impl NodeConfig for Chart {
         Box::new(ChartRunner {
             data: self.data,
 
-            input: self.input.into(),
+            windowed_downsampled_data: self.windowed_downsampled_data.into(),
 
             chart_size: self.chart_size.into(),
             refresh_period: self.refresh_period.into(),

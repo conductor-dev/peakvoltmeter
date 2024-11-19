@@ -5,8 +5,8 @@ pub type SampleRate = usize;
 pub type TimeChartPeriods = usize;
 pub type FftSize = usize;
 pub type RmsWindow = f32;
-pub type RmsChartSize = usize;
-pub type RmsRefreshPeriod = f32;
+pub type ChartSize = usize;
+pub type RefreshPeriod = f32;
 
 pub enum SettingsPacket {
     // general settings
@@ -18,10 +18,10 @@ pub enum SettingsPacket {
     // harmonics settings
     FftSize(FftSize),
 
-    // rms trend settings
-    RmsWindow(RmsWindow),
-    RmsChartSize(RmsChartSize),
-    RmsRefreshPeriod(RmsRefreshPeriod),
+    // rms trend and peak sqrt settings
+    Window(RmsWindow),
+    ChartSize(ChartSize),
+    RefreshPeriod(RefreshPeriod),
 }
 
 struct SettingsRunner {
@@ -30,9 +30,9 @@ struct SettingsRunner {
     sample_rate: NodeRunnerOutputPort<SampleRate>,
     time_chartperiods: NodeRunnerOutputPort<TimeChartPeriods>,
     fft_size: NodeRunnerOutputPort<FftSize>,
-    rms_window: NodeRunnerOutputPort<RmsWindow>,
-    rms_chart_size: NodeRunnerOutputPort<RmsChartSize>,
-    rms_refresh_period: NodeRunnerOutputPort<RmsRefreshPeriod>,
+    window: NodeRunnerOutputPort<RmsWindow>,
+    chart_size: NodeRunnerOutputPort<ChartSize>,
+    refresh_period: NodeRunnerOutputPort<RefreshPeriod>,
 }
 
 impl NodeRunner for SettingsRunner {
@@ -50,14 +50,14 @@ impl NodeRunner for SettingsRunner {
                 SettingsPacket::FftSize(fft_size) => {
                     self.fft_size.send(&fft_size);
                 }
-                SettingsPacket::RmsWindow(rms_window) => {
-                    self.rms_window.send(&rms_window);
+                SettingsPacket::Window(window) => {
+                    self.window.send(&window);
                 }
-                SettingsPacket::RmsChartSize(rms_chart_size) => {
-                    self.rms_chart_size.send(&rms_chart_size);
+                SettingsPacket::ChartSize(chart_size) => {
+                    self.chart_size.send(&chart_size);
                 }
-                SettingsPacket::RmsRefreshPeriod(rms_refresh_period) => {
-                    self.rms_refresh_period.send(&rms_refresh_period);
+                SettingsPacket::RefreshPeriod(rms_refresh_period) => {
+                    self.refresh_period.send(&rms_refresh_period);
                 }
             }
         }
@@ -70,9 +70,9 @@ pub struct Settings {
     pub sample_rate: NodeConfigOutputPort<SampleRate>,
     pub time_chart_periods: NodeConfigOutputPort<TimeChartPeriods>,
     pub fft_size: NodeConfigOutputPort<FftSize>,
-    pub rms_window: NodeConfigOutputPort<RmsWindow>,
-    pub rms_chart_size: NodeConfigOutputPort<RmsChartSize>,
-    pub rms_refresh_period: NodeConfigOutputPort<RmsRefreshPeriod>,
+    pub window: NodeConfigOutputPort<RmsWindow>,
+    pub chart_size: NodeConfigOutputPort<ChartSize>,
+    pub rms_refresh_period: NodeConfigOutputPort<RefreshPeriod>,
 }
 
 impl Settings {
@@ -83,8 +83,8 @@ impl Settings {
             sample_rate: NodeConfigOutputPort::new(),
             time_chart_periods: NodeConfigOutputPort::new(),
             fft_size: NodeConfigOutputPort::new(),
-            rms_window: NodeConfigOutputPort::new(),
-            rms_chart_size: NodeConfigOutputPort::new(),
+            window: NodeConfigOutputPort::new(),
+            chart_size: NodeConfigOutputPort::new(),
             rms_refresh_period: NodeConfigOutputPort::new(),
         }
     }
@@ -97,9 +97,9 @@ impl NodeConfig for Settings {
             sample_rate: self.sample_rate.into(),
             time_chartperiods: self.time_chart_periods.into(),
             fft_size: self.fft_size.into(),
-            rms_window: self.rms_window.into(),
-            rms_chart_size: self.rms_chart_size.into(),
-            rms_refresh_period: self.rms_refresh_period.into(),
+            window: self.window.into(),
+            chart_size: self.chart_size.into(),
+            refresh_period: self.rms_refresh_period.into(),
         })
     }
 }
