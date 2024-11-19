@@ -1,4 +1,5 @@
 use crate::{
+    frequency_widget::FrequencyWidget,
     harmonics::Harmonics,
     peak_sqrt_widget::PeakSqrtChart,
     rms_trend::RmsTrend,
@@ -35,6 +36,7 @@ pub struct Application {
     time: Time,
     peak_sqrt_chart: PeakSqrtChart,
     rms_widget: RmsWidget,
+    frequency_widget: FrequencyWidget,
 
     panel: Panel,
 
@@ -62,6 +64,7 @@ impl Application {
         harmonics_data: Arc<RwLock<Vec<[f64; 2]>>>,
         rms_trend_data: Arc<RwLock<Vec<[f64; 2]>>>,
         peak_sqrt_data: Arc<RwLock<Vec<[f64; 2]>>>,
+        frequency_widget_data: Arc<RwLock<Vec<[f64; 2]>>>,
         settings_sender: Sender<SettingsPacket>,
     ) -> Self {
         // Set default settings
@@ -90,6 +93,7 @@ impl Application {
             rms_trend: RmsTrend::new(rms_trend_data.clone()),
             peak_sqrt_chart: PeakSqrtChart::new(peak_sqrt_data),
             rms_widget: RmsWidget::new(rms_trend_data),
+            frequency_widget: FrequencyWidget::new(frequency_widget_data),
             time: Time::new(),
             panel: Panel::Charts,
             settings_sender,
@@ -116,9 +120,9 @@ impl Application {
 
                 self.peak_sqrt_chart.ui(ui, self.chart_size);
 
-                ui.separator();
-
                 self.rms_widget.ui(ui, self.chart_size);
+
+                self.frequency_widget.ui(ui, self.chart_size);
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {

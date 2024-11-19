@@ -11,13 +11,21 @@ use egui_plot::{Line, Plot, PlotPoints};
 use rustfft::num_complex::Complex;
 use std::sync::{Arc, RwLock};
 
+pub const DOWNSAMPLING_FACTOR: usize = 600;
+
 pub struct HarmonicsInputPorts {
     pub data: NodeConfigInputPort<PeakVoltmeterPacket>,
     pub fft_size: (NodeConfigInputPort<FftSize>, NodeConfigInputPort<FftSize>),
     pub sample_rate: NodeConfigInputPort<SampleRate>,
 }
 
-pub fn harmonics(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<HarmonicsInputPorts, ()> {
+pub struct HarmonicsOutputPorts {
+    pub fft_output: NodeConfigOutputPort<Vec<f64>>,
+}
+
+pub fn harmonics(
+    data: Arc<RwLock<Vec<[f64; 2]>>>,
+) -> Pipeline<HarmonicsInputPorts, HarmonicsOutputPorts> {
     let into_f32 = Intoer::<_, f32>::new();
 
     let fft_buffer = Buffer::new(false);
@@ -27,7 +35,7 @@ pub fn harmonics(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<HarmonicsInputPor
     let fft = FFT::new();
 
     let downsampler = Downsampler::new();
-    downsampler.factor.set_initial(600);
+    downsampler.factor.set_initial(DOWNSAMPLING_FACTOR);
 
     let lambda = Lambdaer::new(|fft: Vec<Complex<f32>>| {
         let length = fft.len();
@@ -65,6 +73,10 @@ pub fn harmonics(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<HarmonicsInputPor
         sample_rate: chart.sample_rate.clone(),
     };
 
+    let output_ports = HarmonicsOutputPorts {
+        fft_output: lambda.output.clone(),
+    };
+
     Pipeline::new(
         vec![
             Box::new(into_f32),
@@ -76,7 +88,7 @@ pub fn harmonics(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<HarmonicsInputPor
             Box::new(chart),
         ],
         input_ports,
-        (),
+        output_ports,
     )
 }
 

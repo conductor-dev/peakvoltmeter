@@ -1,4 +1,5 @@
 mod application;
+mod frequency_widget;
 mod harmonics;
 mod peak_sqrt_widget;
 mod rms_trend;
@@ -10,6 +11,7 @@ mod time_chart;
 use application::Application;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use core::f64;
+use frequency_widget::frequency_widget;
 use peak_sqrt_widget::peak_sqrt;
 // use egui::ViewportBuilder;
 use harmonics::harmonics;
@@ -55,6 +57,7 @@ fn create_pipeline(
     harmonics_buffer: Arc<RwLock<Vec<[f64; 2]>>>,
     rms_trend_buffer: Arc<RwLock<Vec<[f64; 2]>>>,
     peak_sqrt_buffer: Arc<RwLock<Vec<[f64; 2]>>>,
+    frequency_widget_buffer: Arc<RwLock<Vec<[f64; 2]>>>,
     receiver: Receiver<SettingsPacket>,
 ) -> Pipeline<(), ()> {
     let settings = Settings::new(receiver);
@@ -65,10 +68,14 @@ fn create_pipeline(
     let harmonics = harmonics(harmonics_buffer);
     let rms_trend = rms_trend(rms_trend_buffer);
     let peak_sqrt = peak_sqrt(peak_sqrt_buffer);
+    let frequency_widget = frequency_widget(frequency_widget_buffer);
 
     settings.sample_rate.connect(&time_chart.input.sample_rate);
     settings.sample_rate.connect(&harmonics.input.sample_rate);
     settings.sample_rate.connect(&rms_trend.input.sample_rate);
+    settings
+        .sample_rate
+        .connect(&frequency_widget.input.sample_rate);
 
     settings
         .time_chart_periods
@@ -76,11 +83,15 @@ fn create_pipeline(
 
     settings.fft_size.connect(&harmonics.input.fft_size.0);
     settings.fft_size.connect(&harmonics.input.fft_size.1);
+    settings.fft_size.connect(&frequency_widget.input.fft_size);
 
     settings.window.connect(&rms_trend.input.window);
 
     settings.chart_size.connect(&rms_trend.input.chart_size);
     settings.chart_size.connect(&peak_sqrt.input.chart_size);
+    settings
+        .chart_size
+        .connect(&frequency_widget.input.chart_size);
 
     settings
         .rms_refresh_period
@@ -96,6 +107,10 @@ fn create_pipeline(
     udp_receiver.output.connect(&harmonics.input.data);
     udp_receiver.output.connect(&rms_trend.input.data);
 
+    harmonics
+        .output
+        .fft_output
+        .connect(&frequency_widget.input.fft_input);
     rms_trend
         .output
         .windowed_downsampled_data
@@ -107,7 +122,8 @@ fn create_pipeline(
         time_chart,
         harmonics,
         rms_trend,
-        peak_sqrt
+        peak_sqrt,
+        frequency_widget
     )
 }
 
@@ -116,6 +132,7 @@ fn main() {
     let harmonics_buffer = Arc::new(RwLock::new(Vec::new()));
     let rms_trend_buffer = Arc::new(RwLock::new(Vec::new()));
     let peak_sqrt_buffer = Arc::new(RwLock::new(Vec::new()));
+    let frequency_widget_buffer = Arc::new(RwLock::new(Vec::new()));
 
     let (sender, receiver) = channel();
 
@@ -123,6 +140,7 @@ fn main() {
     let harmonics_buffer_cloned = harmonics_buffer.clone();
     let rms_trend_buffer_cloned = rms_trend_buffer.clone();
     let peak_sqrt_buffer_cloned = peak_sqrt_buffer.clone();
+    let frequency_widget_buffer_cloned = frequency_widget_buffer.clone();
 
     thread::spawn(move || {
         create_pipeline(
@@ -130,6 +148,7 @@ fn main() {
             harmonics_buffer_cloned,
             rms_trend_buffer_cloned,
             peak_sqrt_buffer_cloned,
+            frequency_widget_buffer_cloned,
             receiver,
         )
         .run();
@@ -151,6 +170,7 @@ fn main() {
                 harmonics_buffer,
                 rms_trend_buffer,
                 peak_sqrt_buffer,
+                frequency_widget_buffer,
                 sender,
             )))
         }),
