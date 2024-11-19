@@ -5,11 +5,11 @@ use crate::application::Application;
 use std::sync::{Arc, RwLock};
 
 pub struct PeakSqrtChart {
-    _data: Arc<RwLock<Vec<f64>>>,
+    _data: Arc<RwLock<Vec<[f64; 2]>>>,
 }
 
 impl PeakSqrtChart {
-    pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
+    pub fn new(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Self {
         Self { _data: data }
     }
 

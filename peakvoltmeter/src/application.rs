@@ -57,10 +57,10 @@ pub struct Application {
 
 impl Application {
     pub fn new(
-        time_chart_data: Arc<RwLock<Vec<f64>>>,
-        harmonics_data: Arc<RwLock<Vec<f64>>>,
-        rms_trend_data: Arc<RwLock<Vec<f64>>>,
-        peak_sqrt_data: Arc<RwLock<Vec<f64>>>,
+        time_chart_data: Arc<RwLock<Vec<[f64; 2]>>>,
+        harmonics_data: Arc<RwLock<Vec<[f64; 2]>>>,
+        rms_trend_data: Arc<RwLock<Vec<[f64; 2]>>>,
+        peak_sqrt_data: Arc<RwLock<Vec<[f64; 2]>>>,
         settings_sender: Sender<SettingsPacket>,
     ) -> Self {
         // Set default settings
@@ -116,12 +116,11 @@ impl Application {
 
                 ui.separator();
 
-                self.harmonics.ui(ui, self.fft_size, self.sample_rate);
+                self.harmonics.ui(ui, self.sample_rate);
 
                 ui.separator();
 
-                self.rms_trend
-                    .ui(ui, self.rms_chart_size, self.rms_refresh_period);
+                self.rms_trend.ui(ui, self.rms_chart_size);
             });
 
             ui.ctx().request_repaint();

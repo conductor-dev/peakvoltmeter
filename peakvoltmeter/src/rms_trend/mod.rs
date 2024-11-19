@@ -15,12 +15,13 @@ pub struct RmsTrendInputPorts {
     pub sample_rate: NodeConfigInputPort<SampleRate>,
     pub rms_window: NodeConfigInputPort<RmsWindow>,
     pub rms_chart_size: NodeConfigInputPort<RmsChartSize>,
-    pub rms_refresh_period: NodeConfigInputPort<RmsRefreshPeriod>,
+    pub rms_refresh_period: (
+        NodeConfigInputPort<RmsRefreshPeriod>,
+        NodeConfigInputPort<RmsRefreshPeriod>,
+    ),
 }
 
-pub fn rms_trend(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<RmsTrendInputPorts, ()> {
-    let refresh_period = Pass::new();
-
+pub fn rms_trend(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<RmsTrendInputPorts, ()> {
     let into_i32 = Intoer::<_, i32>::new();
 
     let sample_rate_to_f32 = Lambdaer::new(|value: usize| value as f32);
@@ -47,8 +48,6 @@ pub fn rms_trend(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<RmsTrendInputPorts, ()
 
     buffer_size_to_usize.output.connect(&buffer.size);
 
-    refresh_period.output.connect(&refresh_factor.input1);
-
     sample_rate_to_f32.output.connect(&refresh_factor.input2);
 
     refresh_factor
@@ -62,19 +61,17 @@ pub fn rms_trend(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<RmsTrendInputPorts, ()
     buffer.output.connect(&refresh_period_downsampler.input);
 
     refresh_period_downsampler.output.connect(&chart.input);
-    refresh_period.output.connect(&chart.refresh_period);
 
     let input_ports = RmsTrendInputPorts {
         data: into_i32.input.clone(),
         sample_rate: sample_rate_to_f32.input.clone(),
         rms_window: buffer_size.input1.clone(),
         rms_chart_size: chart.chart_size.clone(),
-        rms_refresh_period: refresh_period.input.clone(),
+        rms_refresh_period: (refresh_factor.input1.clone(), chart.refresh_period.clone()),
     };
 
     Pipeline::new(
         vec![
-            Box::new(refresh_period),
             Box::new(into_i32),
             Box::new(sample_rate_to_f32),
             Box::new(buffer_size),
@@ -91,20 +88,20 @@ pub fn rms_trend(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<RmsTrendInputPorts, ()
 }
 
 pub struct RmsTrend {
-    data: Arc<RwLock<Vec<f64>>>,
+    data: Arc<RwLock<Vec<[f64; 2]>>>,
 
     prev_chart_size: f64,
 }
 
 impl RmsTrend {
-    pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
+    pub fn new(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Self {
         Self {
             data,
             prev_chart_size: f64::NEG_INFINITY,
         }
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, rms_chart_size: usize, rms_refresh_period: f32) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, rms_chart_size: usize) {
         ui.vertical_centered(|ui| {
             ui.spacing_mut().item_spacing.y = 10.0;
 
@@ -132,27 +129,13 @@ impl RmsTrend {
             }
 
             plot.show(ui, |plot_ui| {
-                plot_ui.line(self.signal(rms_refresh_period));
+                plot_ui.line(self.signal());
             });
         });
     }
 
-    fn index_to_time(sample: usize, buffer_size: usize, rms_refresh_period: f32) -> f64 {
-        (sample as f64 - (buffer_size as f64 - 1.0)) * rms_refresh_period as f64
-    }
-
-    fn signal(&self, rms_refresh_period: f32) -> Line {
-        let buffer_size = self.data.read().unwrap().len();
-
-        let plot_points = PlotPoints::from_iter(
-            self.data
-                .read()
-                .unwrap()
-                .clone()
-                .into_iter()
-                .enumerate()
-                .map(|(i, v)| [Self::index_to_time(i, buffer_size, rms_refresh_period), v]),
-        );
+    fn signal(&self) -> Line {
+        let plot_points = PlotPoints::from_iter(self.data.read().unwrap().clone());
 
         Line::new(plot_points)
             .color(Color32::LIGHT_BLUE)

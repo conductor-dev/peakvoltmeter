@@ -49,9 +49,9 @@ impl UdpDeserializer for PeakVoltmeterPacket {
 }
 
 fn create_pipeline(
-    time_chart_buffer: Arc<RwLock<Vec<f64>>>,
-    harmonics_buffer: Arc<RwLock<Vec<f64>>>,
-    rms_trend_buffer: Arc<RwLock<Vec<f64>>>,
+    time_chart_buffer: Arc<RwLock<Vec<[f64; 2]>>>,
+    harmonics_buffer: Arc<RwLock<Vec<[f64; 2]>>>,
+    rms_trend_buffer: Arc<RwLock<Vec<[f64; 2]>>>,
     receiver: Receiver<SettingsPacket>,
 ) -> Pipeline<(), ()> {
     let settings = Settings::new(receiver);
@@ -62,18 +62,29 @@ fn create_pipeline(
     let harmonics = harmonics(harmonics_buffer);
     let rms_trend = rms_trend(rms_trend_buffer);
 
+    settings.sample_rate.connect(&time_chart.input.sample_rate);
+    settings.sample_rate.connect(&harmonics.input.sample_rate);
     settings.sample_rate.connect(&rms_trend.input.sample_rate);
+
     settings
         .time_chart_periods
         .connect(&time_chart.input.periods);
-    settings.fft_size.connect(&harmonics.input.fft_size);
+
+    settings.fft_size.connect(&harmonics.input.fft_size.0);
+    settings.fft_size.connect(&harmonics.input.fft_size.1);
+
     settings.rms_window.connect(&rms_trend.input.rms_window);
+
     settings
         .rms_chart_size
         .connect(&rms_trend.input.rms_chart_size);
+
     settings
         .rms_refresh_period
-        .connect(&rms_trend.input.rms_refresh_period);
+        .connect(&rms_trend.input.rms_refresh_period.0);
+    settings
+        .rms_refresh_period
+        .connect(&rms_trend.input.rms_refresh_period.1);
 
     udp_receiver.output.connect(&time_chart.input.data);
     udp_receiver.output.connect(&harmonics.input.data);

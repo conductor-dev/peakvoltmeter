@@ -1,7 +1,11 @@
 mod chart;
 mod trigger;
 
-use crate::{application::CHART_X_BOUND_MARGIN, settings::TimeChartPeriods, PeakVoltmeterPacket};
+use crate::{
+    application::CHART_X_BOUND_MARGIN,
+    settings::{SampleRate, TimeChartPeriods},
+    PeakVoltmeterPacket,
+};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
@@ -12,27 +16,29 @@ use trigger::RisingEdgeTrigger;
 pub struct TimeChartInputPorts {
     pub data: NodeConfigInputPort<PeakVoltmeterPacket>,
     pub periods: NodeConfigInputPort<TimeChartPeriods>,
+    pub sample_rate: NodeConfigInputPort<SampleRate>,
 }
 
-pub fn time_chart(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<TimeChartInputPorts, ()> {
+pub fn time_chart(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<TimeChartInputPorts, ()> {
     let into_i32 = Intoer::<_, i32>::new();
 
     let trigger = RisingEdgeTrigger::new(0);
 
     let period = Downsampler::new();
 
-    let buffer = Chart::new(data);
+    let chart = Chart::new(data);
 
     into_i32.output.connect(&trigger.input);
-    into_i32.output.connect(&buffer.input);
+    into_i32.output.connect(&chart.input);
 
     trigger.trigger.connect(&period.input);
 
-    period.output.connect(&buffer.trigger);
+    period.output.connect(&chart.trigger);
 
     let input_ports = TimeChartInputPorts {
         data: into_i32.input.clone(),
         periods: period.factor.clone(),
+        sample_rate: chart.sample_rate.clone(),
     };
 
     Pipeline::new(
@@ -40,7 +46,7 @@ pub fn time_chart(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<TimeChartInputPorts, 
             Box::new(into_i32),
             Box::new(trigger),
             Box::new(period),
-            Box::new(buffer),
+            Box::new(chart),
         ],
         input_ports,
         (),
@@ -48,13 +54,13 @@ pub fn time_chart(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<TimeChartInputPorts, 
 }
 
 pub struct TimeChart {
-    pub data: Arc<RwLock<Vec<f64>>>,
+    pub data: Arc<RwLock<Vec<[f64; 2]>>>,
 
     prev_x_bound: f64,
 }
 
 impl TimeChart {
-    pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
+    pub fn new(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Self {
         Self {
             data,
             prev_x_bound: f64::NEG_INFINITY,
@@ -72,8 +78,7 @@ impl TimeChart {
 
                 ui.label(RichText::new("Time Chart").size(20.0).strong());
 
-                let x_bound =
-                    Self::sample_to_time(chart_x_bound + CHART_X_BOUND_MARGIN, sample_rate);
+                let x_bound = (chart_x_bound + CHART_X_BOUND_MARGIN) as f64 / sample_rate as f64;
 
                 let mut plot = Plot::new("Plot")
                     .auto_bounds(Vec2b::new(false, true))
@@ -94,26 +99,14 @@ impl TimeChart {
                 }
 
                 plot.show(ui, |plot_ui| {
-                    plot_ui.line(self.signal(sample_rate));
+                    plot_ui.line(self.signal());
                 });
             },
         );
     }
 
-    fn sample_to_time(sample: usize, sample_rate: usize) -> f64 {
-        sample as f64 * (1.0 / sample_rate as f64)
-    }
-
-    fn signal(&self, sample_rate: usize) -> Line {
-        let plot_points = PlotPoints::from_iter(
-            self.data
-                .read()
-                .unwrap()
-                .clone()
-                .into_iter()
-                .enumerate()
-                .map(|(i, v)| [Self::sample_to_time(i, sample_rate), v]),
-        );
+    fn signal(&self) -> Line {
+        let plot_points = PlotPoints::from_iter(self.data.read().unwrap().clone());
 
         Line::new(plot_points)
             .color(Color32::LIGHT_BLUE)

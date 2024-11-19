@@ -851,7 +851,7 @@ dependencies = [
 [[package]]
 name = "conductor"
 version = "0.1.0"
-source = "git+ssh://git@github.com/conductor-dev/conductor.git?rev=f1d867a#f1d867ac53ad1006a82a6645ab612380752c7992"
+source = "git+ssh://git@github.com/conductor-dev/conductor.git?rev=fd41481#fd41481ffca144c53e2c203b99204524e1fe64c0"
 dependencies = [
  "conductor-core",
  "conductor-nodes",
@@ -860,7 +860,7 @@ dependencies = [
 [[package]]
 name = "conductor-core"
 version = "0.1.0"
-source = "git+ssh://git@github.com/conductor-dev/conductor.git?rev=f1d867a#f1d867ac53ad1006a82a6645ab612380752c7992"
+source = "git+ssh://git@github.com/conductor-dev/conductor.git?rev=fd41481#fd41481ffca144c53e2c203b99204524e1fe64c0"
 dependencies = [
  "crossbeam-channel",
 ]
@@ -868,7 +868,7 @@ dependencies = [
 [[package]]
 name = "conductor-macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/conductor-dev/conductor.git?rev=f1d867a#f1d867ac53ad1006a82a6645ab612380752c7992"
+source = "git+ssh://git@github.com/conductor-dev/conductor.git?rev=fd41481#fd41481ffca144c53e2c203b99204524e1fe64c0"
 dependencies = [
  "quote",
  "syn 2.0.87",
@@ -877,7 +877,7 @@ dependencies = [
 [[package]]
 name = "conductor-nodes"
 version = "0.1.0"
-source = "git+ssh://git@github.com/conductor-dev/conductor.git?rev=f1d867a#f1d867ac53ad1006a82a6645ab612380752c7992"
+source = "git+ssh://git@github.com/conductor-dev/conductor.git?rev=fd41481#fd41481ffca144c53e2c203b99204524e1fe64c0"
 dependencies = [
  "conductor-core",
  "conductor-macros",

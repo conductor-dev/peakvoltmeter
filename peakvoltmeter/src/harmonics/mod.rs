@@ -1,6 +1,9 @@
 mod chart;
 
-use crate::{settings::FftSize, PeakVoltmeterPacket};
+use crate::{
+    settings::{FftSize, SampleRate},
+    PeakVoltmeterPacket,
+};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
@@ -10,10 +13,11 @@ use std::sync::{Arc, RwLock};
 
 pub struct HarmonicsInputPorts {
     pub data: NodeConfigInputPort<PeakVoltmeterPacket>,
-    pub fft_size: NodeConfigInputPort<FftSize>,
+    pub fft_size: (NodeConfigInputPort<FftSize>, NodeConfigInputPort<FftSize>),
+    pub sample_rate: NodeConfigInputPort<SampleRate>,
 }
 
-pub fn harmonics(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<HarmonicsInputPorts, ()> {
+pub fn harmonics(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<HarmonicsInputPorts, ()> {
     let into_f32 = Intoer::<_, f32>::new();
 
     let fft_buffer = Buffer::new(false);
@@ -57,7 +61,8 @@ pub fn harmonics(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<HarmonicsInputPorts, (
 
     let input_ports = HarmonicsInputPorts {
         data: into_f32.input.clone(),
-        fft_size: fft_buffer.size.clone(),
+        fft_size: (fft_buffer.size.clone(), chart.fft_size.clone()),
+        sample_rate: chart.sample_rate.clone(),
     };
 
     Pipeline::new(
@@ -76,15 +81,20 @@ pub fn harmonics(data: Arc<RwLock<Vec<f64>>>) -> Pipeline<HarmonicsInputPorts, (
 }
 
 pub struct Harmonics {
-    data: Arc<RwLock<Vec<f64>>>,
+    data: Arc<RwLock<Vec<[f64; 2]>>>,
+
+    prev_x_bound: f64,
 }
 
 impl Harmonics {
-    pub fn new(data: Arc<RwLock<Vec<f64>>>) -> Self {
-        Self { data }
+    pub fn new(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Self {
+        Self {
+            data,
+            prev_x_bound: f64::NEG_INFINITY,
+        }
     }
 
-    pub fn ui(&self, ui: &mut egui::Ui, fft_size: usize, sample_rate: usize) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, sample_rate: usize) {
         let available_size = ui.available_size();
 
         ui.allocate_ui_with_layout(
@@ -95,7 +105,9 @@ impl Harmonics {
 
                 ui.label(RichText::new("Harmonics").size(20.0).strong());
 
-                let plot = Plot::new("Harmonics")
+                let x_bound = sample_rate as f64 / 2.0;
+
+                let mut plot = Plot::new("Harmonics")
                     .auto_bounds(Vec2b::FALSE)
                     .y_axis_label("Signal Strength (dBV)")
                     .x_axis_label("Frequency (Hz)")
@@ -106,29 +118,24 @@ impl Harmonics {
                     .include_y(0.0)
                     .include_y(-200)
                     .include_x(0.0)
-                    .include_x(Self::y_to_hz(fft_size as f64 / 2.0, fft_size, sample_rate));
+                    .include_x(x_bound);
+
+                // We need to check if the x bound has changed to reset the plot, otherwise the
+                // plot will not update the x bound.
+                if (self.prev_x_bound - x_bound).abs() > f64::EPSILON {
+                    plot = plot.reset();
+                    self.prev_x_bound = x_bound;
+                }
 
                 plot.show(ui, |plot_ui| {
-                    plot_ui.line(self.signal(fft_size, sample_rate));
+                    plot_ui.line(self.signal());
                 });
             },
         );
     }
 
-    fn y_to_hz(y: f64, fft_size: usize, sample_rate: usize) -> f64 {
-        y * (sample_rate as f64 / fft_size as f64)
-    }
-
-    fn signal(&self, fft_size: usize, sample_rate: usize) -> Line {
-        let plot_points = PlotPoints::from_iter(
-            self.data
-                .read()
-                .unwrap()
-                .clone()
-                .into_iter()
-                .enumerate()
-                .map(|(i, v)| [Self::y_to_hz(i as f64, fft_size, sample_rate), v]),
-        );
+    fn signal(&self) -> Line {
+        let plot_points = PlotPoints::from_iter(self.data.read().unwrap().clone());
 
         Line::new(plot_points)
             .color(Color32::LIGHT_BLUE)
