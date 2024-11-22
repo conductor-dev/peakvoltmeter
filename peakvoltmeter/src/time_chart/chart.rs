@@ -8,7 +8,7 @@ struct ChartRunner {
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 
     trigger: NodeRunnerInputPort<TriggerMessage>,
-    input: NodeRunnerInputPort<i32>,
+    input: NodeRunnerInputPort<f32>,
 
     sample_rate: NodeRunnerInputPort<SampleRate>,
 }
@@ -47,7 +47,7 @@ pub struct Chart {
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 
     pub trigger: NodeConfigInputPort<TriggerMessage>,
-    pub input: NodeConfigInputPort<i32>,
+    pub input: NodeConfigInputPort<f32>,
 
     pub sample_rate: NodeConfigInputPort<SampleRate>,
 }

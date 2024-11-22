@@ -1,9 +1,6 @@
 mod chart;
 
-use crate::{
-    settings::{FftSize, SampleRate},
-    PeakVoltmeterPacket,
-};
+use crate::settings::{FftSize, SampleRate};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
@@ -14,7 +11,7 @@ use std::sync::{Arc, RwLock};
 pub const DOWNSAMPLING_FACTOR: usize = 600;
 
 pub struct HarmonicsInputPorts {
-    pub data: NodeConfigInputPort<PeakVoltmeterPacket>,
+    pub data: NodeConfigInputPort<f32>,
     pub fft_size: (NodeConfigInputPort<FftSize>, NodeConfigInputPort<FftSize>),
     pub sample_rate: NodeConfigInputPort<SampleRate>,
 }
@@ -26,11 +23,9 @@ pub struct HarmonicsOutputPorts {
 pub fn harmonics(
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 ) -> Pipeline<HarmonicsInputPorts, HarmonicsOutputPorts> {
-    let into_f32 = Intoer::<_, f32>::new();
-
     let fft_buffer = Buffer::new(false);
 
-    let hann_window = Window::new(WindowType::Hann);
+    let hann_window = Window::new(WindowType::Hamming);
 
     let fft = FFT::new();
 
@@ -55,8 +50,6 @@ pub fn harmonics(
 
     let chart = Chart::new(data);
 
-    into_f32.output.connect(&fft_buffer.input);
-
     fft_buffer.output.connect(&downsampler.input);
 
     downsampler.output.connect(&hann_window.input);
@@ -68,7 +61,7 @@ pub fn harmonics(
     lambda.output.connect(&chart.input);
 
     let input_ports = HarmonicsInputPorts {
-        data: into_f32.input.clone(),
+        data: fft_buffer.input.clone(),
         fft_size: (fft_buffer.size.clone(), chart.fft_size.clone()),
         sample_rate: chart.sample_rate.clone(),
     };
@@ -79,7 +72,6 @@ pub fn harmonics(
 
     Pipeline::new(
         vec![
-            Box::new(into_f32),
             Box::new(fft_buffer),
             Box::new(hann_window),
             Box::new(fft),

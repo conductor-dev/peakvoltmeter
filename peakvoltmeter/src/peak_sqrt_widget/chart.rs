@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 struct ChartRunner {
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 
-    windowed_downsampled_data: NodeRunnerInputPort<Vec<i32>>,
+    windowed_downsampled_data: NodeRunnerInputPort<Vec<f32>>,
 
     chart_size: NodeRunnerInputPort<ChartSize>,
     refresh_period: NodeRunnerInputPort<RefreshPeriod>,
@@ -31,7 +31,7 @@ impl NodeRunner for ChartRunner {
         loop {
             receive! {
                 (self.windowed_downsampled_data): buffer => {
-                    let peak = buffer.into_iter().max().unwrap();
+                    let peak = buffer.into_iter().fold(f32::MIN, f32::max);
 
                     peak_sqrt_data.push((peak as f64) / 2.0_f64.sqrt());
 
@@ -61,7 +61,7 @@ impl NodeRunner for ChartRunner {
 pub struct Chart {
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 
-    pub windowed_downsampled_data: NodeConfigInputPort<Vec<i32>>,
+    pub windowed_downsampled_data: NodeConfigInputPort<Vec<f32>>,
 
     pub chart_size: NodeConfigInputPort<ChartSize>,
     pub refresh_period: NodeConfigInputPort<RefreshPeriod>,

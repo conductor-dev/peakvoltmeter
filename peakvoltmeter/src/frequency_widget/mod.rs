@@ -1,6 +1,9 @@
 mod chart;
 
-use crate::settings::{ChartSize, FftSize, SampleRate};
+use crate::{
+    settings::{ChartSize, FftSize, SampleRate},
+    DARK_GRAY,
+};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::NodeConfigInputPort};
 use core::f64;
@@ -48,13 +51,13 @@ impl FrequencyWidget {
     pub fn ui(&mut self, ui: &mut egui::Ui, chart_size: usize) {
         let frame = Frame::default()
             .inner_margin(10.0)
-            .fill(Color32::DARK_GRAY)
+            .fill(DARK_GRAY)
             .rounding(Rounding::same(10.0));
 
         frame.show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 10.0;
 
-            ui.style_mut().visuals.extreme_bg_color = Color32::DARK_GRAY;
+            ui.style_mut().visuals.extreme_bg_color = DARK_GRAY;
             ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
 
             ui.label(RichText::new("Frequency").size(16.0));
@@ -68,7 +71,11 @@ impl FrequencyWidget {
                 .unwrap_or(0.0);
 
             ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                ui.label(RichText::new(format!("{}", last_value)).size(30.0).strong());
+                ui.label(
+                    RichText::new(format!("{:.2} Hz", last_value))
+                        .size(30.0)
+                        .strong(),
+                );
             });
 
             let chart_size = chart_size as f64;

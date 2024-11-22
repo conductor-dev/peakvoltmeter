@@ -1,3 +1,4 @@
+use crate::DARK_GRAY;
 use core::f64;
 use eframe::egui::Frame;
 use egui::{Align, Color32, Layout, RichText, Rounding, Vec2b};
@@ -19,23 +20,23 @@ impl RmsWidget {
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, chart_size: usize) {
-        let frame = Frame::default()
-            .inner_margin(10.0)
-            .fill(Color32::DARK_GRAY)
-            .rounding(Rounding::same(10.0));
+        let available_size = ui.available_size();
 
-        frame.show(ui, |ui| {
-            let available_size = ui.available_size();
+        ui.allocate_ui_with_layout(
+            egui::vec2(available_size.x, available_size.y / 2.0),
+            egui::Layout::top_down(egui::Align::LEFT),
+            |ui| {
+                let frame = Frame::default()
+                    .inner_margin(10.0)
+                    .fill(DARK_GRAY)
+                    .rounding(Rounding::same(10.0));
 
-            ui.spacing_mut().item_spacing.y = 10.0;
+                frame.show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 10.0;
 
-            ui.style_mut().visuals.extreme_bg_color = Color32::DARK_GRAY;
-            ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
+                    ui.style_mut().visuals.extreme_bg_color = DARK_GRAY;
+                    ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
 
-            ui.allocate_ui_with_layout(
-                egui::vec2(available_size.x, available_size.y / 2.0),
-                egui::Layout::top_down(egui::Align::LEFT),
-                |ui| {
                     ui.label(RichText::new("V RMS").size(16.0));
 
                     let last_value = self
@@ -47,7 +48,11 @@ impl RmsWidget {
                         .unwrap_or(0.0);
 
                     ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                        ui.label(RichText::new(format!("{}", last_value)).size(30.0).strong());
+                        ui.label(
+                            RichText::new(format!("{:.2} V", last_value))
+                                .size(30.0)
+                                .strong(),
+                        );
                     });
 
                     let chart_size = chart_size as f64;
@@ -74,9 +79,9 @@ impl RmsWidget {
                     plot.show(ui, |plot_ui| {
                         plot_ui.line(self.signal());
                     });
-                },
-            );
-        });
+                });
+            },
+        );
     }
 
     fn signal(&self) -> Line {

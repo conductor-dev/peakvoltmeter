@@ -5,7 +5,7 @@ use std::sync::{Arc, RwLock};
 struct ChartRunner {
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 
-    input: NodeRunnerInputPort<Vec<i32>>,
+    input: NodeRunnerInputPort<Vec<f32>>,
 
     chart_size: NodeRunnerInputPort<ChartSize>,
     refresh_period: NodeRunnerInputPort<RefreshPeriod>,
@@ -62,7 +62,7 @@ impl NodeRunner for ChartRunner {
 pub struct Chart {
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 
-    pub input: NodeConfigInputPort<Vec<i32>>,
+    pub input: NodeConfigInputPort<Vec<f32>>,
 
     pub chart_size: NodeConfigInputPort<ChartSize>,
     pub refresh_period: NodeConfigInputPort<RefreshPeriod>,

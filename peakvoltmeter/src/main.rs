@@ -11,10 +11,10 @@ mod time_chart;
 use application::Application;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use core::f64;
+use egui::ViewportBuilder;
 use frequency_widget::frequency_widget;
-use peak_sqrt_widget::peak_sqrt;
-// use egui::ViewportBuilder;
 use harmonics::harmonics;
+use peak_sqrt_widget::peak_sqrt;
 use rms_trend::rms_trend;
 use settings::{Settings, SettingsPacket};
 use std::{
@@ -26,14 +26,10 @@ use std::{
 };
 use time_chart::time_chart;
 
+const DARK_GRAY: egui::Color32 = egui::Color32::from_rgb(60, 60, 60);
+
 #[derive(Clone, Copy)]
 struct PeakVoltmeterPacket(i32);
-
-impl From<PeakVoltmeterPacket> for i32 {
-    fn from(packet: PeakVoltmeterPacket) -> Self {
-        packet.0
-    }
-}
 
 impl From<PeakVoltmeterPacket> for f32 {
     fn from(packet: PeakVoltmeterPacket) -> Self {
@@ -64,6 +60,12 @@ fn create_pipeline(
 
     let udp_receiver = UdpReceiver::<PeakVoltmeterPacket>::new("127.0.0.1:8080");
 
+    let into_f32 = Intoer::<_, f32>::new();
+
+    let calibration_factor_multiplier = Multiplier::new();
+
+    let hv_factor_divider = Divider::new();
+
     let time_chart = time_chart(time_chart_buffer);
     let harmonics = harmonics(harmonics_buffer);
     let rms_trend = rms_trend(rms_trend_buffer);
@@ -80,6 +82,14 @@ fn create_pipeline(
     settings
         .time_chart_periods
         .connect(&time_chart.input.periods);
+
+    settings
+        .adc_calibration_factor
+        .connect(&calibration_factor_multiplier.input2);
+
+    settings
+        .hv_divider_factor
+        .connect(&hv_factor_divider.input2);
 
     settings.fft_size.connect(&harmonics.input.fft_size.0);
     settings.fft_size.connect(&harmonics.input.fft_size.1);
@@ -103,9 +113,20 @@ fn create_pipeline(
         .rms_refresh_period
         .connect(&peak_sqrt.input.refresh_period);
 
-    udp_receiver.output.connect(&time_chart.input.data);
-    udp_receiver.output.connect(&harmonics.input.data);
-    udp_receiver.output.connect(&rms_trend.input.data);
+    udp_receiver.output.connect(&into_f32.input);
+
+    into_f32
+        .output
+        .connect(&calibration_factor_multiplier.input1);
+
+    calibration_factor_multiplier
+        .output
+        .connect(&hv_factor_divider.input1);
+
+    hv_factor_divider.output.connect(&time_chart.input.data.0);
+    hv_factor_divider.output.connect(&time_chart.input.data.1);
+    hv_factor_divider.output.connect(&harmonics.input.data);
+    hv_factor_divider.output.connect(&rms_trend.input.data);
 
     harmonics
         .output
@@ -119,6 +140,9 @@ fn create_pipeline(
     pipeline!(
         settings,
         udp_receiver,
+        into_f32,
+        calibration_factor_multiplier,
+        hv_factor_divider,
         time_chart,
         harmonics,
         rms_trend,
@@ -154,10 +178,10 @@ fn main() {
         .run();
     });
 
-    // let viewport = ViewportBuilder::default().with_fullscreen(true);
+    let viewport = ViewportBuilder::default().with_fullscreen(true);
 
     let options = eframe::NativeOptions {
-        // viewport,
+        viewport,
         ..Default::default()
     };
 

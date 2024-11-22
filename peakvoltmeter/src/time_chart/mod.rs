@@ -4,7 +4,6 @@ mod trigger;
 use crate::{
     application::CHART_X_BOUND_MARGIN,
     settings::{SampleRate, TimeChartPeriods},
-    PeakVoltmeterPacket,
 };
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
@@ -14,40 +13,30 @@ use std::sync::{Arc, RwLock};
 use trigger::RisingEdgeTrigger;
 
 pub struct TimeChartInputPorts {
-    pub data: NodeConfigInputPort<PeakVoltmeterPacket>,
+    pub data: (NodeConfigInputPort<f32>, NodeConfigInputPort<f32>),
     pub periods: NodeConfigInputPort<TimeChartPeriods>,
     pub sample_rate: NodeConfigInputPort<SampleRate>,
 }
 
 pub fn time_chart(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<TimeChartInputPorts, ()> {
-    let into_i32 = Intoer::<_, i32>::new();
-
-    let trigger = RisingEdgeTrigger::new(0);
+    let trigger = RisingEdgeTrigger::new(0.0);
 
     let period = Downsampler::new();
 
     let chart = Chart::new(data);
-
-    into_i32.output.connect(&trigger.input);
-    into_i32.output.connect(&chart.input);
 
     trigger.trigger.connect(&period.input);
 
     period.output.connect(&chart.trigger);
 
     let input_ports = TimeChartInputPorts {
-        data: into_i32.input.clone(),
+        data: (trigger.input.clone(), chart.input.clone()),
         periods: period.factor.clone(),
         sample_rate: chart.sample_rate.clone(),
     };
 
     Pipeline::new(
-        vec![
-            Box::new(into_i32),
-            Box::new(trigger),
-            Box::new(period),
-            Box::new(chart),
-        ],
+        vec![Box::new(trigger), Box::new(period), Box::new(chart)],
         input_ports,
         (),
     )

@@ -5,28 +5,51 @@ use crate::{
     rms_trend::RmsTrend,
     rms_widget::RmsWidget,
     settings::{
-        ChartSize, FftSize, RefreshPeriod, RmsWindow, SampleRate, SettingsPacket, TimeChartPeriods,
+        AdcCalibrationFactor, ChartSize, FftSize, HvDividerFactor, RefreshPeriod, RmsWindow,
+        SampleRate, SettingsPacket, TimeChartPeriods,
     },
     time::Time,
     time_chart::TimeChart,
 };
+use core::fmt;
 use egui::{Align, Layout, RichText, Style, Visuals};
-use std::sync::{mpsc::Sender, Arc, RwLock};
+use std::{
+    fmt::{Debug, Formatter},
+    sync::{mpsc::Sender, Arc, RwLock},
+};
 
 const SAMPLE_RATE_DEFAULT: SampleRate = 3125;
+const ADC_CALIBRATION_FACTOR_DEFAULT: AdcCalibrationFactor = 25.6999;
+const HV_DIVIDER_FACTOR_DEFAULT: HvDividerFactor = 8033.0;
+const DEFAULT_UNIT: Unit = Unit::Volt;
 const PERIODS_DEFAULT: TimeChartPeriods = 3;
-const CHART_X_BOUND_DEFAULT: usize = 185;
+const CHART_X_BOUND_DEFAULT: usize = 187;
 const FFT_SIZE_DEFAULT: FftSize = 2048;
 const WINDOW_DEFAULT: RmsWindow = 0.5;
-const CHART_SIZE_WINDOW_DEFAULT: usize = 180;
+const CHART_SIZE_DEFAULT: ChartSize = 180;
 const REFRESH_PERIOD_DEFAULT: RefreshPeriod = 0.5;
 
-pub const CHART_X_BOUND_MARGIN: usize = 10;
+pub const CHART_X_BOUND_MARGIN: usize = 1;
 
 #[derive(PartialEq)]
 enum Panel {
     Charts,
     Settings,
+}
+
+#[derive(PartialEq)]
+enum Unit {
+    Volt,
+    KiloVolt,
+}
+
+impl Debug for Unit {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Unit::Volt => write!(f, "Volt"),
+            Unit::KiloVolt => write!(f, "Kilovolt"),
+        }
+    }
 }
 
 pub struct Application {
@@ -42,8 +65,11 @@ pub struct Application {
 
     settings_sender: Sender<SettingsPacket>,
 
-    // general settings
+    // signal settings
     sample_rate: SampleRate,
+    adc_calibration_factor: AdcCalibrationFactor,
+    hv_divider_factor: HvDividerFactor,
+    unit: Unit,
 
     // time chart settings
     periods: TimeChartPeriods,
@@ -72,6 +98,14 @@ impl Application {
             .send(SettingsPacket::SampleRate(SAMPLE_RATE_DEFAULT))
             .unwrap();
         settings_sender
+            .send(SettingsPacket::AdcCalibrationFactor(
+                ADC_CALIBRATION_FACTOR_DEFAULT,
+            ))
+            .unwrap();
+        settings_sender
+            .send(SettingsPacket::HvDividerFactor(HV_DIVIDER_FACTOR_DEFAULT))
+            .unwrap();
+        settings_sender
             .send(SettingsPacket::TimeChartPeriods(PERIODS_DEFAULT))
             .unwrap();
         settings_sender
@@ -81,7 +115,7 @@ impl Application {
             .send(SettingsPacket::Window(WINDOW_DEFAULT))
             .unwrap();
         settings_sender
-            .send(SettingsPacket::ChartSize(CHART_SIZE_WINDOW_DEFAULT))
+            .send(SettingsPacket::ChartSize(CHART_SIZE_DEFAULT))
             .unwrap();
         settings_sender
             .send(SettingsPacket::RefreshPeriod(REFRESH_PERIOD_DEFAULT))
@@ -98,11 +132,14 @@ impl Application {
             panel: Panel::Charts,
             settings_sender,
             sample_rate: SAMPLE_RATE_DEFAULT,
+            adc_calibration_factor: ADC_CALIBRATION_FACTOR_DEFAULT,
+            hv_divider_factor: HV_DIVIDER_FACTOR_DEFAULT,
+            unit: DEFAULT_UNIT,
             periods: PERIODS_DEFAULT,
             chart_x_bound: CHART_X_BOUND_DEFAULT,
             fft_size: FFT_SIZE_DEFAULT,
             window: WINDOW_DEFAULT,
-            chart_size: CHART_SIZE_WINDOW_DEFAULT,
+            chart_size: CHART_SIZE_DEFAULT,
             refresh_period: REFRESH_PERIOD_DEFAULT,
         }
     }
@@ -146,12 +183,12 @@ impl Application {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.spacing_mut().item_spacing.y = 10.0;
 
-            ui.label(RichText::new("General Settings").size(20.0).strong());
+            ui.label(RichText::new("Signal Settings").size(20.0).strong());
 
             ui.horizontal(|ui| {
                 ui.label("Signal Sample Rate:");
                 if ui
-                    .add(egui::Slider::new(&mut self.sample_rate, 1..=10000).text("Hz"))
+                    .add(egui::Slider::new(&mut self.sample_rate, 1..=10_000).text("Hz"))
                     .changed()
                 {
                     self.settings_sender
@@ -159,6 +196,45 @@ impl Application {
                         .unwrap();
                 }
             });
+
+            ui.horizontal(|ui| {
+                ui.label("ADC Calibration Factor:");
+                if ui
+                    .add(egui::Slider::new(
+                        &mut self.adc_calibration_factor,
+                        0.0..=100.0,
+                    ))
+                    .changed()
+                {
+                    self.settings_sender
+                        .send(SettingsPacket::AdcCalibrationFactor(
+                            self.adc_calibration_factor,
+                        ))
+                        .unwrap();
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("HV Divider Factor:");
+                if ui
+                    .add(egui::Slider::new(
+                        &mut self.hv_divider_factor,
+                        0.0..=20_000.0,
+                    ))
+                    .changed()
+                {
+                    self.settings_sender
+                        .send(SettingsPacket::HvDividerFactor(self.hv_divider_factor))
+                        .unwrap();
+                }
+            });
+
+            egui::ComboBox::from_label("Volatage Unit")
+                .selected_text(format!("{:?}", self.unit))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.unit, Unit::Volt, "Volt");
+                    ui.selectable_value(&mut self.unit, Unit::KiloVolt, "Kilovolt");
+                });
 
             ui.separator();
 

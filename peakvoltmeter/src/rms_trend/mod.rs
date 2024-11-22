@@ -1,9 +1,6 @@
 mod chart;
 
-use crate::{
-    settings::{ChartSize, RefreshPeriod, RmsWindow, SampleRate},
-    PeakVoltmeterPacket,
-};
+use crate::settings::{ChartSize, RefreshPeriod, RmsWindow, SampleRate};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
@@ -11,7 +8,7 @@ use egui_plot::{Line, Plot, PlotPoints};
 use std::sync::{Arc, RwLock};
 
 pub struct RmsTrendInputPorts {
-    pub data: NodeConfigInputPort<PeakVoltmeterPacket>,
+    pub data: NodeConfigInputPort<f32>,
     pub sample_rate: NodeConfigInputPort<SampleRate>,
     pub window: NodeConfigInputPort<RmsWindow>,
     pub chart_size: NodeConfigInputPort<ChartSize>,
@@ -22,14 +19,12 @@ pub struct RmsTrendInputPorts {
 }
 
 pub struct RmsTrendOutputPorts {
-    pub windowed_downsampled_data: NodeConfigOutputPort<Vec<i32>>,
+    pub windowed_downsampled_data: NodeConfigOutputPort<Vec<f32>>,
 }
 
 pub fn rms_trend(
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 ) -> Pipeline<RmsTrendInputPorts, RmsTrendOutputPorts> {
-    let into_i32 = Intoer::<_, i32>::new();
-
     let sample_rate_to_f32 = Lambdaer::new(|value: usize| value as f32);
 
     let buffer_size = Multiplier::new();
@@ -45,8 +40,6 @@ pub fn rms_trend(
     let refresh_period_downsampler = Downsampler::new();
 
     let chart = Chart::new(data);
-
-    into_i32.output.connect(&buffer.input);
 
     sample_rate_to_f32.output.connect(&buffer_size.input2);
 
@@ -69,7 +62,7 @@ pub fn rms_trend(
     refresh_period_downsampler.output.connect(&chart.input);
 
     let input_ports = RmsTrendInputPorts {
-        data: into_i32.input.clone(),
+        data: buffer.input.clone(),
         sample_rate: sample_rate_to_f32.input.clone(),
         window: buffer_size.input1.clone(),
         chart_size: chart.chart_size.clone(),
@@ -82,7 +75,6 @@ pub fn rms_trend(
 
     Pipeline::new(
         vec![
-            Box::new(into_i32),
             Box::new(sample_rate_to_f32),
             Box::new(buffer_size),
             Box::new(buffer_size_to_usize),
