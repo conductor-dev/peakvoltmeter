@@ -1,6 +1,7 @@
 mod chart;
 
 use crate::{
+    application::{Precision, Unit},
     settings::{ChartSize, RefreshPeriod},
     DARK_GRAY,
 };
@@ -44,7 +45,7 @@ impl PeakSqrtChart {
         }
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, chart_size: usize) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, chart_size: usize, unit: Unit, precision: Precision) {
         let available_size = ui.available_size();
 
         ui.allocate_ui_with_layout(
@@ -74,7 +75,7 @@ impl PeakSqrtChart {
 
                     ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
                         ui.label(
-                            RichText::new(format!("{:.2} V", last_value))
+                            RichText::new(unit.apply_unit_with_precision(last_value, precision))
                                 .size(30.0)
                                 .strong(),
                         );

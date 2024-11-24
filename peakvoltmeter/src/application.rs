@@ -14,14 +14,17 @@ use crate::{
 use core::fmt;
 use egui::{Align, Layout, RichText, Style, Visuals};
 use std::{
-    fmt::{Debug, Formatter},
+    fmt::{Display, Formatter},
     sync::{mpsc::Sender, Arc, RwLock},
 };
+
+pub type Precision = usize;
 
 const SAMPLE_RATE_DEFAULT: SampleRate = 3125;
 const ADC_CALIBRATION_FACTOR_DEFAULT: AdcCalibrationFactor = 25.6999;
 const HV_DIVIDER_FACTOR_DEFAULT: HvDividerFactor = 8033.0;
 const DEFAULT_UNIT: Unit = Unit::Volt;
+const DEFAULT_PRECISION: Precision = 2;
 const PERIODS_DEFAULT: TimeChartPeriods = 3;
 const CHART_X_BOUND_DEFAULT: usize = 187;
 const FFT_SIZE_DEFAULT: FftSize = 2048;
@@ -37,17 +40,33 @@ enum Panel {
     Settings,
 }
 
-#[derive(PartialEq)]
-enum Unit {
+#[derive(PartialEq, Clone, Copy)]
+pub enum Unit {
     Volt,
     KiloVolt,
 }
 
-impl Debug for Unit {
+impl Display for Unit {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Unit::Volt => write!(f, "Volt"),
             Unit::KiloVolt => write!(f, "Kilovolt"),
+        }
+    }
+}
+
+impl Unit {
+    pub fn apply_unit(&self, value: f64) -> String {
+        match self {
+            Unit::Volt => format!("{} V", value),
+            Unit::KiloVolt => format!("{} kV", value / 1000.0),
+        }
+    }
+
+    pub fn apply_unit_with_precision(&self, value: f64, precision: usize) -> String {
+        match self {
+            Unit::Volt => format!("{:.precision$} V", value, precision = precision),
+            Unit::KiloVolt => format!("{:.precision$} kV", value / 1000.0, precision = precision),
         }
     }
 }
@@ -70,6 +89,7 @@ pub struct Application {
     adc_calibration_factor: AdcCalibrationFactor,
     hv_divider_factor: HvDividerFactor,
     unit: Unit,
+    precision: Precision,
 
     // time chart settings
     periods: TimeChartPeriods,
@@ -135,6 +155,7 @@ impl Application {
             adc_calibration_factor: ADC_CALIBRATION_FACTOR_DEFAULT,
             hv_divider_factor: HV_DIVIDER_FACTOR_DEFAULT,
             unit: DEFAULT_UNIT,
+            precision: DEFAULT_PRECISION,
             periods: PERIODS_DEFAULT,
             chart_x_bound: CHART_X_BOUND_DEFAULT,
             fft_size: FFT_SIZE_DEFAULT,
@@ -155,9 +176,11 @@ impl Application {
 
                 ui.separator();
 
-                self.peak_sqrt_chart.ui(ui, self.chart_size);
+                self.peak_sqrt_chart
+                    .ui(ui, self.chart_size, self.unit, self.precision);
 
-                self.rms_widget.ui(ui, self.chart_size);
+                self.rms_widget
+                    .ui(ui, self.chart_size, self.unit, self.precision);
 
                 self.frequency_widget.ui(ui, self.chart_size);
             });
@@ -230,11 +253,16 @@ impl Application {
             });
 
             egui::ComboBox::from_label("Volatage Unit")
-                .selected_text(format!("{:?}", self.unit))
+                .selected_text(format!("{}", self.unit))
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut self.unit, Unit::Volt, "Volt");
                     ui.selectable_value(&mut self.unit, Unit::KiloVolt, "Kilovolt");
                 });
+
+            ui.horizontal(|ui| {
+                ui.label("Precision:");
+                ui.add(egui::Slider::new(&mut self.precision, 0..=10))
+            });
 
             ui.separator();
 

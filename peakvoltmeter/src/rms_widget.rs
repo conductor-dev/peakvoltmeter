@@ -1,4 +1,7 @@
-use crate::DARK_GRAY;
+use crate::{
+    application::{Precision, Unit},
+    DARK_GRAY,
+};
 use core::f64;
 use eframe::egui::Frame;
 use egui::{Align, Color32, Layout, RichText, Rounding, Vec2b};
@@ -19,7 +22,7 @@ impl RmsWidget {
         }
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, chart_size: usize) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, chart_size: usize, unit: Unit, precision: Precision) {
         let available_size = ui.available_size();
 
         ui.allocate_ui_with_layout(
@@ -49,7 +52,7 @@ impl RmsWidget {
 
                     ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
                         ui.label(
-                            RichText::new(format!("{:.2} V", last_value))
+                            RichText::new(unit.apply_unit_with_precision(last_value, precision))
                                 .size(30.0)
                                 .strong(),
                         );
