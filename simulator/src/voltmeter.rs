@@ -7,7 +7,7 @@ use std::{
 
 #[derive(Debug, Deserialize)]
 struct Row {
-    sample: f32,
+    sample: i32,
 }
 
 fn read_csv(input: Input, delimiter: u8) -> ConductorSimResult<Vec<Row>> {
