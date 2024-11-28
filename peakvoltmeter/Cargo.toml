@@ -5,7 +5,7 @@ edition = { workspace = true }
 readme = { workspace = true }
 
 [dependencies]
-conductor = { git = "ssh://git@github.com/conductor-dev/conductor.git", rev = "fd41481" }
+conductor = { git = "ssh://git@github.com/conductor-dev/conductor.git", rev = "79f8852" }
 eframe = "0.29.1"
 egui = "0.29.1"
 egui_plot = "0.29.0"

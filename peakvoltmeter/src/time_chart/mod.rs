@@ -2,7 +2,8 @@ mod chart;
 mod trigger;
 
 use crate::{
-    application::CHART_X_BOUND_MARGIN,
+    application::{calculate_precision, Precision, VoltageUnit, CHART_X_BOUND_MARGIN},
+    coordinates_formatter,
     settings::{SampleRate, TimeChartPeriods},
 };
 use chart::Chart;
@@ -56,7 +57,14 @@ impl TimeChart {
         }
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, chart_x_bound: usize, sample_rate: usize) {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        chart_x_bound: usize,
+        sample_rate: SampleRate,
+        unit: VoltageUnit,
+        precision: Precision,
+    ) {
         let available_size = ui.available_size();
 
         ui.allocate_ui_with_layout(
@@ -77,6 +85,21 @@ impl TimeChart {
                     .allow_drag(false)
                     .allow_zoom(false)
                     .allow_scroll(false)
+                    .label_formatter(|_, _| "".to_owned())
+                    .coordinates_formatter(
+                        egui_plot::Corner::LeftTop,
+                        coordinates_formatter(unit, precision),
+                    )
+                    .x_axis_formatter(|grid_mark, range| {
+                        format!(
+                            "{:.precision$} s",
+                            grid_mark.value,
+                            precision = calculate_precision(range)
+                        )
+                    })
+                    .y_axis_formatter(|grid_mark, range| {
+                        unit.apply_unit_with_precision(grid_mark.value, calculate_precision(range))
+                    })
                     .include_x(0.0)
                     .include_x(x_bound);
 

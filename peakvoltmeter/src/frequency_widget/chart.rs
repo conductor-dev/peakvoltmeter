@@ -1,7 +1,4 @@
-use crate::{
-    harmonics::DOWNSAMPLING_FACTOR,
-    settings::{ChartSize, FftSize, SampleRate},
-};
+use crate::settings::{ChartSize, FftSize, RefreshPeriod, SampleRate};
 
 use conductor::prelude::*;
 use std::sync::{Arc, RwLock};
@@ -14,25 +11,26 @@ struct ChartRunner {
     chart_size: NodeRunnerInputPort<ChartSize>,
     sample_rate: NodeRunnerInputPort<SampleRate>,
     fft_size: NodeRunnerInputPort<FftSize>,
+    refresh_period: NodeRunnerInputPort<RefreshPeriod>,
 }
 
 impl NodeRunner for ChartRunner {
     fn run(self: Box<Self>) {
-        fn index_to_time(index: usize, buffer_size: usize, sample_rate: usize) -> f64 {
-            (index as f64 - (buffer_size as f64 - 1.0))
-                * (DOWNSAMPLING_FACTOR as f64 / sample_rate as f64)
+        fn index_to_time(index: usize, buffer_size: usize, refresh_period: RefreshPeriod) -> f64 {
+            (index as f64 - (buffer_size as f64 - 1.0)) * refresh_period as f64
         }
 
-        fn calculate_buffer_size(chart_size: usize, sample_rate: usize) -> usize {
-            ((chart_size * sample_rate) / DOWNSAMPLING_FACTOR) + 1
+        fn calculate_buffer_size(chart_size: usize, refresh_period: RefreshPeriod) -> usize {
+            (chart_size as f32 / refresh_period) as usize + 1
         }
 
         let mut chart_size = self.chart_size.recv().unwrap();
         let mut sample_rate = self.sample_rate.recv().unwrap();
         let mut fft_size = self.fft_size.recv().unwrap();
+        let mut refresh_period = self.refresh_period.recv().unwrap();
 
         let mut frequency_data =
-            CircularBuffer::new(calculate_buffer_size(chart_size, sample_rate));
+            CircularBuffer::new(calculate_buffer_size(chart_size, refresh_period));
 
         loop {
             receive! {
@@ -53,25 +51,31 @@ impl NodeRunner for ChartRunner {
                         .clone()
                         .into_iter()
                         .enumerate()
-                        .map(|(i, v)| [index_to_time(i, frequency_data.len(), sample_rate), v])
+                        .map(|(i, v)| [index_to_time(i, frequency_data.len(), refresh_period), v])
                         .collect();
                 },
                 (self.chart_size): new_chart_size => {
                     chart_size = new_chart_size;
 
-                    frequency_data.resize(calculate_buffer_size(chart_size, sample_rate));
+                    frequency_data.resize(calculate_buffer_size(chart_size, refresh_period));
                 },
                 (self.sample_rate): new_sample_rate => {
                     sample_rate = new_sample_rate;
 
                     // previous data is invalidated so new buffer must be created
-                    frequency_data = CircularBuffer::new(calculate_buffer_size(chart_size, sample_rate));
+                    frequency_data = CircularBuffer::new(calculate_buffer_size(chart_size, refresh_period));
                 },
                 (self.fft_size): new_fft_size => {
                     fft_size = new_fft_size;
 
                     // previous data is invalidated so new buffer must be created
-                    frequency_data = CircularBuffer::new(calculate_buffer_size(chart_size, sample_rate));
+                    frequency_data = CircularBuffer::new(calculate_buffer_size(chart_size, refresh_period));
+                },
+                (self.refresh_period): new_refresh_period => {
+                    refresh_period = new_refresh_period;
+
+                    // previous data is invalidated so new buffer must be created
+                    frequency_data = CircularBuffer::new(calculate_buffer_size(chart_size, refresh_period));
                 },
             };
         }
@@ -86,6 +90,7 @@ pub struct Chart {
     pub chart_size: NodeConfigInputPort<ChartSize>,
     pub sample_rate: NodeConfigInputPort<SampleRate>,
     pub fft_size: NodeConfigInputPort<FftSize>,
+    pub refresh_period: NodeConfigInputPort<RefreshPeriod>,
 }
 
 impl Chart {
@@ -98,6 +103,7 @@ impl Chart {
             chart_size: NodeConfigInputPort::new(),
             sample_rate: NodeConfigInputPort::new(),
             fft_size: NodeConfigInputPort::new(),
+            refresh_period: NodeConfigInputPort::new(),
         }
     }
 }
@@ -112,6 +118,7 @@ impl NodeConfig for Chart {
             chart_size: self.chart_size.into(),
             sample_rate: self.sample_rate.into(),
             fft_size: self.fft_size.into(),
+            refresh_period: self.refresh_period.into(),
         })
     }
 }

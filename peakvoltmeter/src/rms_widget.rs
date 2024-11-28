@@ -1,5 +1,7 @@
 use crate::{
-    application::{Precision, Unit},
+    application::{calculate_precision, Precision, VoltageUnit},
+    coordinates_formatter,
+    settings::ChartSize,
     DARK_GRAY,
 };
 use core::f64;
@@ -22,7 +24,13 @@ impl RmsWidget {
         }
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, chart_size: usize, unit: Unit, precision: Precision) {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        chart_size: ChartSize,
+        unit: VoltageUnit,
+        precision: Precision,
+    ) {
         let available_size = ui.available_size();
 
         ui.allocate_ui_with_layout(
@@ -68,6 +76,24 @@ impl RmsWidget {
                         .allow_drag(false)
                         .allow_zoom(false)
                         .allow_scroll(false)
+                        .label_formatter(|_, _| "".to_owned())
+                        .coordinates_formatter(
+                            egui_plot::Corner::LeftTop,
+                            coordinates_formatter(unit, precision),
+                        )
+                        .x_axis_formatter(|grid_mark, range| {
+                            format!(
+                                "{:.precision$} s",
+                                grid_mark.value,
+                                precision = calculate_precision(range)
+                            )
+                        })
+                        .y_axis_formatter(|grid_mark, range| {
+                            unit.apply_unit_with_precision(
+                                grid_mark.value,
+                                calculate_precision(range),
+                            )
+                        })
                         .include_y(0.0)
                         .include_x(0.0)
                         .include_x(-chart_size);

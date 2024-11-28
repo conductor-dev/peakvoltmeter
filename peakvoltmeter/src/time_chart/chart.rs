@@ -15,7 +15,7 @@ struct ChartRunner {
 
 impl NodeRunner for ChartRunner {
     fn run(self: Box<Self>) {
-        fn index_to_time(index: usize, sample_rate: usize) -> f64 {
+        fn index_to_time(index: usize, sample_rate: SampleRate) -> f64 {
             index as f64 * (1.0 / sample_rate as f64)
         }
 

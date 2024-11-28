@@ -1,6 +1,10 @@
 mod chart;
 
-use crate::settings::{ChartSize, RefreshPeriod, RmsWindow, SampleRate};
+use crate::{
+    application::{calculate_precision, Precision, VoltageUnit},
+    coordinates_formatter,
+    settings::{ChartSize, RefreshPeriod, RmsWindow, SampleRate},
+};
 use chart::Chart;
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use egui::{Color32, RichText, Vec2b};
@@ -9,10 +13,13 @@ use std::sync::{Arc, RwLock};
 
 pub struct RmsTrendInputPorts {
     pub data: NodeConfigInputPort<f32>,
-    pub sample_rate: NodeConfigInputPort<SampleRate>,
+    pub sample_rate: (
+        NodeConfigInputPort<SampleRate>,
+        NodeConfigInputPort<SampleRate>,
+    ),
     pub window: NodeConfigInputPort<RmsWindow>,
     pub chart_size: NodeConfigInputPort<ChartSize>,
-    pub rms_refresh_period: (
+    pub refresh_preiod: (
         NodeConfigInputPort<RefreshPeriod>,
         NodeConfigInputPort<RefreshPeriod>,
     ),
@@ -25,8 +32,6 @@ pub struct RmsTrendOutputPorts {
 pub fn rms_trend(
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 ) -> Pipeline<RmsTrendInputPorts, RmsTrendOutputPorts> {
-    let sample_rate_to_f32 = Lambdaer::new(|value: usize| value as f32);
-
     let buffer_size = Multiplier::new();
 
     let buffer_size_to_usize = Lambdaer::new(|value: f32| value as usize);
@@ -41,13 +46,9 @@ pub fn rms_trend(
 
     let chart = Chart::new(data);
 
-    sample_rate_to_f32.output.connect(&buffer_size.input2);
-
     buffer_size.output.connect(&buffer_size_to_usize.input);
 
     buffer_size_to_usize.output.connect(&buffer.size);
-
-    sample_rate_to_f32.output.connect(&refresh_factor.input2);
 
     refresh_factor
         .output
@@ -63,10 +64,10 @@ pub fn rms_trend(
 
     let input_ports = RmsTrendInputPorts {
         data: buffer.input.clone(),
-        sample_rate: sample_rate_to_f32.input.clone(),
+        sample_rate: (buffer_size.input2.clone(), refresh_factor.input2.clone()),
         window: buffer_size.input1.clone(),
         chart_size: chart.chart_size.clone(),
-        rms_refresh_period: (refresh_factor.input1.clone(), chart.refresh_period.clone()),
+        refresh_preiod: (refresh_factor.input1.clone(), chart.refresh_period.clone()),
     };
 
     let output_ports = RmsTrendOutputPorts {
@@ -75,7 +76,6 @@ pub fn rms_trend(
 
     Pipeline::new(
         vec![
-            Box::new(sample_rate_to_f32),
             Box::new(buffer_size),
             Box::new(buffer_size_to_usize),
             Box::new(buffer),
@@ -103,7 +103,13 @@ impl RmsTrend {
         }
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, chart_size: usize) {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        chart_size: ChartSize,
+        unit: VoltageUnit,
+        precision: Precision,
+    ) {
         ui.vertical_centered(|ui| {
             ui.spacing_mut().item_spacing.y = 10.0;
 
@@ -119,6 +125,21 @@ impl RmsTrend {
                 .allow_drag(false)
                 .allow_zoom(false)
                 .allow_scroll(false)
+                .label_formatter(|_, _| "".to_owned())
+                .coordinates_formatter(
+                    egui_plot::Corner::LeftTop,
+                    coordinates_formatter(unit, precision),
+                )
+                .x_axis_formatter(|grid_mark, range| {
+                    format!(
+                        "{:.precision$} s",
+                        grid_mark.value,
+                        precision = calculate_precision(range)
+                    )
+                })
+                .y_axis_formatter(|grid_mark, range| {
+                    unit.apply_unit_with_precision(grid_mark.value, calculate_precision(range))
+                })
                 .include_y(0.0)
                 .include_x(0.0)
                 .include_x(-chart_size);

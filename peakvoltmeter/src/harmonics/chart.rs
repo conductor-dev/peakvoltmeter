@@ -14,7 +14,7 @@ struct ChartRunner {
 
 impl NodeRunner for ChartRunner {
     fn run(self: Box<Self>) {
-        fn index_to_hz(index: usize, fft_size: usize, sample_rate: usize) -> f64 {
+        fn index_to_hz(index: usize, fft_size: FftSize, sample_rate: SampleRate) -> f64 {
             index as f64 * (sample_rate as f64 / fft_size as f64)
         }
 

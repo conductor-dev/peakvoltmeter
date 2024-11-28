@@ -6,7 +6,7 @@ use crate::{
     rms_widget::RmsWidget,
     settings::{
         AdcCalibrationFactor, ChartSize, FftSize, HvDividerFactor, RefreshPeriod, RmsWindow,
-        SampleRate, SettingsPacket, TimeChartPeriods,
+        SettingsPacket, TimeChartPeriods,
     },
     time::Time,
     time_chart::TimeChart,
@@ -15,22 +15,44 @@ use core::fmt;
 use egui::{Align, Layout, RichText, Style, Visuals};
 use std::{
     fmt::{Display, Formatter},
+    ops::RangeInclusive,
     sync::{mpsc::Sender, Arc, RwLock},
 };
 
+pub fn calculate_precision(range: &RangeInclusive<f64>) -> usize {
+    let max_abs = range.start().abs().max(range.end().abs());
+
+    if max_abs >= 10.0 {
+        0
+    } else if max_abs >= 1.0 {
+        1
+    } else {
+        let mut precision = 2;
+        let mut step = 0.1;
+
+        while max_abs < step && precision < 15 {
+            precision += 1;
+            step /= 10.0;
+        }
+
+        precision
+    }
+}
+
 pub type Precision = usize;
 
-const SAMPLE_RATE_DEFAULT: SampleRate = 3125;
+const SAMPLE_RATE_DEFAULT: usize = 3125;
 const ADC_CALIBRATION_FACTOR_DEFAULT: AdcCalibrationFactor = 25.6999;
 const HV_DIVIDER_FACTOR_DEFAULT: HvDividerFactor = 8033.0;
-const DEFAULT_UNIT: Unit = Unit::Volt;
+const DEFAULT_UNIT: VoltageUnit = VoltageUnit::Volt;
 const DEFAULT_PRECISION: Precision = 2;
 const PERIODS_DEFAULT: TimeChartPeriods = 3;
 const CHART_X_BOUND_DEFAULT: usize = 187;
 const FFT_SIZE_DEFAULT: FftSize = 2048;
+const HARMONICS_REFRESH_PERIOD: RefreshPeriod = 0.2;
 const WINDOW_DEFAULT: RmsWindow = 0.5;
 const CHART_SIZE_DEFAULT: ChartSize = 180;
-const REFRESH_PERIOD_DEFAULT: RefreshPeriod = 0.5;
+const RMS_REFRESH_PERIOD_DEFAULT: RefreshPeriod = 0.5;
 
 pub const CHART_X_BOUND_MARGIN: usize = 1;
 
@@ -41,32 +63,27 @@ enum Panel {
 }
 
 #[derive(PartialEq, Clone, Copy)]
-pub enum Unit {
+pub enum VoltageUnit {
     Volt,
     KiloVolt,
 }
 
-impl Display for Unit {
+impl Display for VoltageUnit {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Unit::Volt => write!(f, "Volt"),
-            Unit::KiloVolt => write!(f, "Kilovolt"),
+            VoltageUnit::Volt => write!(f, "Volt"),
+            VoltageUnit::KiloVolt => write!(f, "Kilovolt"),
         }
     }
 }
 
-impl Unit {
-    pub fn apply_unit(&self, value: f64) -> String {
-        match self {
-            Unit::Volt => format!("{} V", value),
-            Unit::KiloVolt => format!("{} kV", value / 1000.0),
-        }
-    }
-
+impl VoltageUnit {
     pub fn apply_unit_with_precision(&self, value: f64, precision: usize) -> String {
         match self {
-            Unit::Volt => format!("{:.precision$} V", value, precision = precision),
-            Unit::KiloVolt => format!("{:.precision$} kV", value / 1000.0, precision = precision),
+            VoltageUnit::Volt => format!("{:.precision$} V", value, precision = precision),
+            VoltageUnit::KiloVolt => {
+                format!("{:.precision$} kV", value / 1000.0, precision = precision)
+            }
         }
     }
 }
@@ -85,23 +102,26 @@ pub struct Application {
     settings_sender: Sender<SettingsPacket>,
 
     // signal settings
-    sample_rate: SampleRate,
+    sample_rate: usize,
     adc_calibration_factor: AdcCalibrationFactor,
     hv_divider_factor: HvDividerFactor,
-    unit: Unit,
+    unit: VoltageUnit,
     precision: Precision,
+
+    // general settings
+    chart_size: ChartSize,
 
     // time chart settings
     periods: TimeChartPeriods,
     chart_x_bound: usize,
 
-    // harmonics settings
+    // harmonics and frequency settings
     fft_size: FftSize,
+    harmonics_refresh_period: RefreshPeriod,
 
     // rms trend and peak sqrt settings
     window: RmsWindow,
-    chart_size: ChartSize,
-    refresh_period: RefreshPeriod,
+    rms_refresh_period: RefreshPeriod,
 }
 
 impl Application {
@@ -115,7 +135,7 @@ impl Application {
     ) -> Self {
         // Set default settings
         settings_sender
-            .send(SettingsPacket::SampleRate(SAMPLE_RATE_DEFAULT))
+            .send(SettingsPacket::SampleRate(SAMPLE_RATE_DEFAULT as f32))
             .unwrap();
         settings_sender
             .send(SettingsPacket::AdcCalibrationFactor(
@@ -126,19 +146,24 @@ impl Application {
             .send(SettingsPacket::HvDividerFactor(HV_DIVIDER_FACTOR_DEFAULT))
             .unwrap();
         settings_sender
+            .send(SettingsPacket::ChartSize(CHART_SIZE_DEFAULT))
+            .unwrap();
+        settings_sender
             .send(SettingsPacket::TimeChartPeriods(PERIODS_DEFAULT))
             .unwrap();
         settings_sender
             .send(SettingsPacket::FftSize(FFT_SIZE_DEFAULT))
             .unwrap();
         settings_sender
+            .send(SettingsPacket::HarmonicsRefreshPeriod(
+                HARMONICS_REFRESH_PERIOD,
+            ))
+            .unwrap();
+        settings_sender
             .send(SettingsPacket::Window(WINDOW_DEFAULT))
             .unwrap();
         settings_sender
-            .send(SettingsPacket::ChartSize(CHART_SIZE_DEFAULT))
-            .unwrap();
-        settings_sender
-            .send(SettingsPacket::RefreshPeriod(REFRESH_PERIOD_DEFAULT))
+            .send(SettingsPacket::RmsRefreshPeriod(RMS_REFRESH_PERIOD_DEFAULT))
             .unwrap();
 
         Self {
@@ -156,12 +181,13 @@ impl Application {
             hv_divider_factor: HV_DIVIDER_FACTOR_DEFAULT,
             unit: DEFAULT_UNIT,
             precision: DEFAULT_PRECISION,
+            chart_size: CHART_SIZE_DEFAULT,
             periods: PERIODS_DEFAULT,
             chart_x_bound: CHART_X_BOUND_DEFAULT,
             fft_size: FFT_SIZE_DEFAULT,
+            harmonics_refresh_period: HARMONICS_REFRESH_PERIOD,
             window: WINDOW_DEFAULT,
-            chart_size: CHART_SIZE_DEFAULT,
-            refresh_period: REFRESH_PERIOD_DEFAULT,
+            rms_refresh_period: RMS_REFRESH_PERIOD_DEFAULT,
         }
     }
 
@@ -182,20 +208,29 @@ impl Application {
                 self.rms_widget
                     .ui(ui, self.chart_size, self.unit, self.precision);
 
-                self.frequency_widget.ui(ui, self.chart_size);
+                self.frequency_widget
+                    .ui(ui, self.chart_size, self.precision);
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
-                self.time_chart.ui(ui, self.chart_x_bound, self.sample_rate);
+                self.time_chart.ui(
+                    ui,
+                    self.chart_x_bound,
+                    self.sample_rate as f32,
+                    self.unit,
+                    self.precision,
+                );
 
                 ui.separator();
 
-                self.harmonics.ui(ui, self.sample_rate);
+                self.harmonics
+                    .ui(ui, self.sample_rate as f32, self.precision);
 
                 ui.separator();
 
-                self.rms_trend.ui(ui, self.chart_size);
+                self.rms_trend
+                    .ui(ui, self.chart_size, self.unit, self.precision);
             });
 
             ui.ctx().request_repaint();
@@ -215,7 +250,7 @@ impl Application {
                     .changed()
                 {
                     self.settings_sender
-                        .send(SettingsPacket::SampleRate(self.sample_rate))
+                        .send(SettingsPacket::SampleRate(self.sample_rate as f32))
                         .unwrap();
                 }
             });
@@ -255,13 +290,29 @@ impl Application {
             egui::ComboBox::from_label("Volatage Unit")
                 .selected_text(format!("{}", self.unit))
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.unit, Unit::Volt, "Volt");
-                    ui.selectable_value(&mut self.unit, Unit::KiloVolt, "Kilovolt");
+                    ui.selectable_value(&mut self.unit, VoltageUnit::Volt, "Volt");
+                    ui.selectable_value(&mut self.unit, VoltageUnit::KiloVolt, "Kilovolt");
                 });
 
             ui.horizontal(|ui| {
-                ui.label("Precision:");
+                ui.label("Chart Formatter Precision:");
                 ui.add(egui::Slider::new(&mut self.precision, 0..=10))
+            });
+
+            ui.separator();
+
+            ui.label(RichText::new("General Settings").size(20.0).strong());
+
+            ui.horizontal(|ui| {
+                ui.label("Chart Size:");
+                if ui
+                    .add(egui::Slider::new(&mut self.chart_size, 10..=300).text("seconds"))
+                    .changed()
+                {
+                    self.settings_sender
+                        .send(SettingsPacket::ChartSize(self.chart_size))
+                        .unwrap();
+                }
             });
 
             ui.separator();
@@ -282,7 +333,11 @@ impl Application {
 
             ui.separator();
 
-            ui.label(RichText::new("Harmonics Settings").size(20.0).strong());
+            ui.label(
+                RichText::new("Harmonics and Frequency Settings")
+                    .size(20.0)
+                    .strong(),
+            );
 
             ui.horizontal(|ui| {
                 ui.label("FFT Size:");
@@ -292,6 +347,23 @@ impl Application {
                 {
                     self.settings_sender
                         .send(SettingsPacket::FftSize(self.fft_size))
+                        .unwrap();
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Refresh Period:");
+                if ui
+                    .add(
+                        egui::Slider::new(&mut self.harmonics_refresh_period, 0.01..=10.0)
+                            .text("seconds"),
+                    )
+                    .changed()
+                {
+                    self.settings_sender
+                        .send(SettingsPacket::HarmonicsRefreshPeriod(
+                            self.harmonics_refresh_period,
+                        ))
                         .unwrap();
                 }
             });
@@ -317,25 +389,16 @@ impl Application {
             });
 
             ui.horizontal(|ui| {
-                ui.label("Chart Size:");
-                if ui
-                    .add(egui::Slider::new(&mut self.chart_size, 10..=300).text("seconds"))
-                    .changed()
-                {
-                    self.settings_sender
-                        .send(SettingsPacket::ChartSize(self.chart_size))
-                        .unwrap();
-                }
-            });
-
-            ui.horizontal(|ui| {
                 ui.label("Refresh Period:");
                 if ui
-                    .add(egui::Slider::new(&mut self.refresh_period, 0.01..=10.0).text("seconds"))
+                    .add(
+                        egui::Slider::new(&mut self.rms_refresh_period, 0.01..=10.0)
+                            .text("seconds"),
+                    )
                     .changed()
                 {
                     self.settings_sender
-                        .send(SettingsPacket::RefreshPeriod(self.refresh_period))
+                        .send(SettingsPacket::RmsRefreshPeriod(self.rms_refresh_period))
                         .unwrap();
                 }
             });

@@ -8,10 +8,11 @@ mod settings;
 mod time;
 mod time_chart;
 
-use application::Application;
+use application::{calculate_precision, Application, VoltageUnit};
 use conductor::{core::pipeline::Pipeline, prelude::*};
 use core::f64;
 use egui::ViewportBuilder;
+use egui_plot::CoordinatesFormatter;
 use frequency_widget::frequency_widget;
 use harmonics::harmonics;
 use peak_sqrt_widget::peak_sqrt;
@@ -27,6 +28,23 @@ use std::{
 use time_chart::time_chart;
 
 const DARK_GRAY: egui::Color32 = egui::Color32::from_rgb(60, 60, 60);
+
+pub fn coordinates_formatter<'a>(unit: VoltageUnit, precision: usize) -> CoordinatesFormatter<'a> {
+    CoordinatesFormatter::new(move |plot_point, bounds| {
+        let x_precision = precision.max(calculate_precision(&(bounds.min()[0]..=bounds.max()[0])));
+        let y_precision = precision.max(calculate_precision(&(bounds.min()[1]..=bounds.max()[1])));
+
+        let x = plot_point.x;
+        let y = unit.apply_unit_with_precision(plot_point.y, y_precision);
+
+        format!(
+            "x = {:.precision$} s\ny = {}",
+            x,
+            y,
+            precision = x_precision
+        )
+    })
+}
 
 #[derive(Clone, Copy)]
 struct PeakVoltmeterPacket(i32);
@@ -73,8 +91,10 @@ fn create_pipeline(
     let frequency_widget = frequency_widget(frequency_widget_buffer);
 
     settings.sample_rate.connect(&time_chart.input.sample_rate);
-    settings.sample_rate.connect(&harmonics.input.sample_rate);
-    settings.sample_rate.connect(&rms_trend.input.sample_rate);
+    settings.sample_rate.connect(&harmonics.input.sample_rate.0);
+    settings.sample_rate.connect(&harmonics.input.sample_rate.1);
+    settings.sample_rate.connect(&rms_trend.input.sample_rate.0);
+    settings.sample_rate.connect(&rms_trend.input.sample_rate.1);
     settings
         .sample_rate
         .connect(&frequency_widget.input.sample_rate);
@@ -95,6 +115,13 @@ fn create_pipeline(
     settings.fft_size.connect(&harmonics.input.fft_size.1);
     settings.fft_size.connect(&frequency_widget.input.fft_size);
 
+    settings
+        .harmonics_refresh_period
+        .connect(&harmonics.input.refresh_period);
+    settings
+        .harmonics_refresh_period
+        .connect(&frequency_widget.input.refresh_period);
+
     settings.window.connect(&rms_trend.input.window);
 
     settings.chart_size.connect(&rms_trend.input.chart_size);
@@ -105,10 +132,10 @@ fn create_pipeline(
 
     settings
         .rms_refresh_period
-        .connect(&rms_trend.input.rms_refresh_period.0);
+        .connect(&rms_trend.input.refresh_preiod.0);
     settings
         .rms_refresh_period
-        .connect(&rms_trend.input.rms_refresh_period.1);
+        .connect(&rms_trend.input.refresh_preiod.1);
     settings
         .rms_refresh_period
         .connect(&peak_sqrt.input.refresh_period);
