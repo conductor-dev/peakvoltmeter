@@ -18,8 +18,8 @@ impl NodeRunner for ChartRunner {
             index as f64 * (sample_rate as f64 / fft_size as f64)
         }
 
-        let mut fft_size = self.fft_size.recv().unwrap();
-        let mut sample_rate = self.sample_rate.recv().unwrap();
+        let mut fft_size = self.fft_size.recv();
+        let mut sample_rate = self.sample_rate.recv();
 
         loop {
             receive! {

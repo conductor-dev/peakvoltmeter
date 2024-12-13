@@ -32,17 +32,17 @@ pub struct RmsTrendOutputPorts {
 pub fn rms_trend(
     data: Arc<RwLock<Vec<[f64; 2]>>>,
 ) -> Pipeline<RmsTrendInputPorts, RmsTrendOutputPorts> {
-    let buffer_size = Multiplier::new();
+    let buffer_size = Multiply::new();
 
-    let buffer_size_to_usize = Lambdaer::new(|value: f32| value as usize);
+    let buffer_size_to_usize = Lambda::new(|value: f32| value as usize);
 
     let buffer = Buffer::new(true);
 
-    let refresh_factor = Multiplier::new();
+    let refresh_factor = Multiply::new();
 
-    let refresh_factor_to_usize = Lambdaer::new(|value: f32| value as usize);
+    let refresh_factor_to_usize = Lambda::new(|value: f32| value as usize);
 
-    let refresh_period_downsampler = Downsampler::new();
+    let refresh_period_downsampler = Downsample::new();
 
     let chart = Chart::new(data);
 

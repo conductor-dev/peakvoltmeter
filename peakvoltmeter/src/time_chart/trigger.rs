@@ -14,10 +14,10 @@ struct RisingEdgeTriggerRunner<T> {
 
 impl<T: PartialOrd> NodeRunner for RisingEdgeTriggerRunner<T> {
     fn run(self: Box<Self>) {
-        let mut previous_value = self.input.recv().unwrap();
+        let mut previous_value = self.input.recv();
 
         loop {
-            let value = self.input.recv().unwrap();
+            let value = self.input.recv();
 
             if previous_value < self.threshold && value >= self.threshold {
                 self.trigger.send(&TriggerMessage::Triggered);

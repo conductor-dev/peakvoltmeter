@@ -22,7 +22,7 @@ pub struct TimeChartInputPorts {
 pub fn time_chart(data: Arc<RwLock<Vec<[f64; 2]>>>) -> Pipeline<TimeChartInputPorts, ()> {
     let trigger = RisingEdgeTrigger::new(0.0);
 
-    let period = Downsampler::new();
+    let period = Downsample::new();
 
     let chart = Chart::new(data);
 

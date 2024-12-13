@@ -24,10 +24,10 @@ impl NodeRunner for ChartRunner {
             (chart_size as f32 / refresh_period) as usize + 1
         }
 
-        let mut chart_size = self.chart_size.recv().unwrap();
-        let mut sample_rate = self.sample_rate.recv().unwrap();
-        let mut fft_size = self.fft_size.recv().unwrap();
-        let mut refresh_period = self.refresh_period.recv().unwrap();
+        let mut chart_size = self.chart_size.recv();
+        let mut sample_rate = self.sample_rate.recv();
+        let mut fft_size = self.fft_size.recv();
+        let mut refresh_period = self.refresh_period.recv();
 
         let mut frequency_data =
             CircularBuffer::new(calculate_buffer_size(chart_size, refresh_period));

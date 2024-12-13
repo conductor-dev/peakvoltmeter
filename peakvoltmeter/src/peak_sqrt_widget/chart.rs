@@ -22,8 +22,8 @@ impl NodeRunner for ChartRunner {
             (chart_size as f32 / refresh_period) as usize + 1
         }
 
-        let mut chart_size = self.chart_size.recv().unwrap();
-        let mut refresh_period = self.refresh_period.recv().unwrap();
+        let mut chart_size = self.chart_size.recv();
+        let mut refresh_period = self.refresh_period.recv();
 
         let mut peak_sqrt_data =
             CircularBuffer::new(calculate_buffer_size(chart_size, refresh_period));

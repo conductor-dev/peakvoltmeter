@@ -78,11 +78,9 @@ fn create_pipeline(
 
     let udp_receiver = UdpReceiver::<PeakVoltmeterPacket>::new("127.0.0.1:8080");
 
-    let into_f32 = Intoer::<_, f32>::new();
+    let into_f32 = IntoNode::<_, f32>::new();
 
-    let calibration_factor_multiplier = Multiplier::new();
-
-    let hv_factor_divider = Divider::new();
+    let calibrated_signal = Multiply::new();
 
     let time_chart = time_chart(time_chart_buffer);
     let harmonics = harmonics(harmonics_buffer);
@@ -104,12 +102,8 @@ fn create_pipeline(
         .connect(&time_chart.input.periods);
 
     settings
-        .adc_calibration_factor
-        .connect(&calibration_factor_multiplier.input2);
-
-    settings
-        .hv_divider_factor
-        .connect(&hv_factor_divider.input2);
+        .calibration_factor
+        .connect(&calibrated_signal.input2);
 
     settings.fft_size.connect(&harmonics.input.fft_size.0);
     settings.fft_size.connect(&harmonics.input.fft_size.1);
@@ -142,18 +136,12 @@ fn create_pipeline(
 
     udp_receiver.output.connect(&into_f32.input);
 
-    into_f32
-        .output
-        .connect(&calibration_factor_multiplier.input1);
+    into_f32.output.connect(&calibrated_signal.input1);
 
-    calibration_factor_multiplier
-        .output
-        .connect(&hv_factor_divider.input1);
-
-    hv_factor_divider.output.connect(&time_chart.input.data.0);
-    hv_factor_divider.output.connect(&time_chart.input.data.1);
-    hv_factor_divider.output.connect(&harmonics.input.data);
-    hv_factor_divider.output.connect(&rms_trend.input.data);
+    calibrated_signal.output.connect(&time_chart.input.data.0);
+    calibrated_signal.output.connect(&time_chart.input.data.1);
+    calibrated_signal.output.connect(&harmonics.input.data);
+    calibrated_signal.output.connect(&rms_trend.input.data);
 
     harmonics
         .output
@@ -168,8 +156,7 @@ fn create_pipeline(
         settings,
         udp_receiver,
         into_f32,
-        calibration_factor_multiplier,
-        hv_factor_divider,
+        calibrated_signal,
         time_chart,
         harmonics,
         rms_trend,

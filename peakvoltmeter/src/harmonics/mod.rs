@@ -30,17 +30,17 @@ pub fn harmonics(
 ) -> Pipeline<HarmonicsInputPorts, HarmonicsOutputPorts> {
     let fft_buffer = Buffer::new(false);
 
-    let refresh_factor = Multiplier::new();
+    let refresh_factor = Multiply::new();
 
-    let refresh_factor_to_usize = Lambdaer::new(|value: f32| value as usize);
+    let refresh_factor_to_usize = Lambda::new(|value: f32| value as usize);
 
-    let refresh_period_downsampler = Downsampler::new();
+    let refresh_period_downsampler = Downsample::new();
 
     let hann_window = Window::new(WindowType::Hamming);
 
     let fft = FFT::new();
 
-    let lambda = Lambdaer::new(|fft: Vec<Complex<f32>>| {
+    let lambda = Lambda::new(|fft: Vec<Complex<f32>>| {
         let length = fft.len();
 
         let fft = fft

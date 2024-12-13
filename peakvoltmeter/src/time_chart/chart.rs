@@ -21,7 +21,7 @@ impl NodeRunner for ChartRunner {
 
         let mut cache = Vec::new();
 
-        let mut sample_rate = self.sample_rate.recv().unwrap();
+        let mut sample_rate = self.sample_rate.recv();
 
         loop {
             receive! {
