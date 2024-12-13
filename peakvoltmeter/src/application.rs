@@ -5,8 +5,8 @@ use crate::{
     rms_trend::RmsTrend,
     rms_widget::RmsWidget,
     settings::{
-        AdcCalibrationFactor, ChartSize, FftSize, HvDividerFactor, RefreshPeriod, RmsWindow,
-        SettingsPacket, TimeChartPeriods,
+        CalibrationFactor, ChartSize, FftSize, RefreshPeriod, RmsWindow, SettingsPacket,
+        TimeChartPeriods,
     },
     time::Time,
     time_chart::TimeChart,
@@ -42,8 +42,7 @@ pub fn calculate_precision(range: &RangeInclusive<f64>) -> usize {
 pub type Precision = usize;
 
 const SAMPLE_RATE_DEFAULT: usize = 3125;
-const ADC_CALIBRATION_FACTOR_DEFAULT: AdcCalibrationFactor = 25.6999;
-const HV_DIVIDER_FACTOR_DEFAULT: HvDividerFactor = 8033.0;
+const CALIBRATION_FACTOR_DEFAULT: CalibrationFactor = 0.00319929;
 const DEFAULT_UNIT: VoltageUnit = VoltageUnit::Volt;
 const DEFAULT_PRECISION: Precision = 2;
 const PERIODS_DEFAULT: TimeChartPeriods = 3;
@@ -103,8 +102,7 @@ pub struct Application {
 
     // signal settings
     sample_rate: usize,
-    adc_calibration_factor: AdcCalibrationFactor,
-    hv_divider_factor: HvDividerFactor,
+    calibration_factor: CalibrationFactor,
     unit: VoltageUnit,
     precision: Precision,
 
@@ -138,12 +136,9 @@ impl Application {
             .send(SettingsPacket::SampleRate(SAMPLE_RATE_DEFAULT as f32))
             .unwrap();
         settings_sender
-            .send(SettingsPacket::AdcCalibrationFactor(
-                ADC_CALIBRATION_FACTOR_DEFAULT,
+            .send(SettingsPacket::CalibrationFactor(
+                CALIBRATION_FACTOR_DEFAULT,
             ))
-            .unwrap();
-        settings_sender
-            .send(SettingsPacket::HvDividerFactor(HV_DIVIDER_FACTOR_DEFAULT))
             .unwrap();
         settings_sender
             .send(SettingsPacket::ChartSize(CHART_SIZE_DEFAULT))
@@ -177,8 +172,7 @@ impl Application {
             panel: Panel::Charts,
             settings_sender,
             sample_rate: SAMPLE_RATE_DEFAULT,
-            adc_calibration_factor: ADC_CALIBRATION_FACTOR_DEFAULT,
-            hv_divider_factor: HV_DIVIDER_FACTOR_DEFAULT,
+            calibration_factor: CALIBRATION_FACTOR_DEFAULT,
             unit: DEFAULT_UNIT,
             precision: DEFAULT_PRECISION,
             chart_size: CHART_SIZE_DEFAULT,
@@ -256,33 +250,13 @@ impl Application {
             });
 
             ui.horizontal(|ui| {
-                ui.label("ADC Calibration Factor:");
+                ui.label("Calibration Factor:");
                 if ui
-                    .add(egui::Slider::new(
-                        &mut self.adc_calibration_factor,
-                        0.0..=100.0,
-                    ))
+                    .add(egui::Slider::new(&mut self.calibration_factor, 0.0..=1.0))
                     .changed()
                 {
                     self.settings_sender
-                        .send(SettingsPacket::AdcCalibrationFactor(
-                            self.adc_calibration_factor,
-                        ))
-                        .unwrap();
-                }
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("HV Divider Factor:");
-                if ui
-                    .add(egui::Slider::new(
-                        &mut self.hv_divider_factor,
-                        0.0..=20_000.0,
-                    ))
-                    .changed()
-                {
-                    self.settings_sender
-                        .send(SettingsPacket::HvDividerFactor(self.hv_divider_factor))
+                        .send(SettingsPacket::CalibrationFactor(self.calibration_factor))
                         .unwrap();
                 }
             });
