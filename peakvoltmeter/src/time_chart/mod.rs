@@ -77,7 +77,7 @@ impl TimeChart {
 
                 let x_bound = (chart_x_bound + CHART_X_BOUND_MARGIN) as f64 / sample_rate as f64;
 
-                let mut plot = Plot::new("Plot")
+                let mut plot = Plot::new("Time Chart")
                     .auto_bounds(Vec2b::new(false, true))
                     .y_axis_label("Voltage")
                     .x_axis_label("Time")
