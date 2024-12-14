@@ -99,7 +99,7 @@ impl FrequencyWidget {
                 )
             });
 
-            let mut plot = Plot::new("Frequency")
+            let mut plot = Plot::new("Frequency Widget")
                 .auto_bounds(Vec2b::new(false, true))
                 .y_axis_label("Frequency")
                 .x_axis_label("Time")

@@ -68,7 +68,7 @@ impl RmsWidget {
 
                     let chart_size = chart_size as f64;
 
-                    let mut plot = Plot::new("Peak Sqrt")
+                    let mut plot = Plot::new("RMS Widget")
                         .auto_bounds(Vec2b::new(false, true))
                         .y_axis_label("Voltage")
                         .x_axis_label("Time")
