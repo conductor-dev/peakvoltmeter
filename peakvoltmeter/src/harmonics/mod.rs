@@ -36,7 +36,7 @@ pub fn harmonics(
 
     let refresh_period_downsampler = Downsample::new();
 
-    let hann_window = Window::new(WindowType::Hamming);
+    let hann_window = Window::new(WindowType::Hann);
 
     let fft = FFT::new();
 
