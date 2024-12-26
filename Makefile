@@ -1,7 +1,7 @@
 .PHONY = run clean format lint
 
 run:
-	cargo run
+	cargo run --release
 
 clean:
 	rm -rf target
