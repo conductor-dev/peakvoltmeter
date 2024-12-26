@@ -14,9 +14,11 @@ The repository consists of two applciations:
 
 ### Prerequisites
 
-The only prerequisite for installing and/or using the applications is rust [Rust](https://www.rust-lang.org/tools/install). We also provide a `Makefile` for some common commands.
+[Rust](https://www.rust-lang.org/tools/install) is required for installing the applications. We also provide a `Makefile` for some common commands.
 
-### Useful commands:
+Conductor is used as a dependency in `peakvoltmeter/Cargo.toml`. As Conductor is yet to be released, its private git repository is referenced. This may need to be adjusted.
+
+### Useful commands
 
 - `make run`: executes the peakvoltmeter application
 
