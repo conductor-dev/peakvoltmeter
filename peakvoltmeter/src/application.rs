@@ -50,6 +50,7 @@ const CHART_X_BOUND_DEFAULT: usize = 187;
 const FFT_SIZE_DEFAULT: FftSize = 2048;
 const HARMONICS_REFRESH_PERIOD: RefreshPeriod = 0.2;
 const WINDOW_DEFAULT: RmsWindow = 0.5;
+const ZOOM_FACTOR_DEFAULT: f32 = 1.0;
 const CHART_SIZE_DEFAULT: ChartSize = 180;
 const RMS_REFRESH_PERIOD_DEFAULT: RefreshPeriod = 0.5;
 
@@ -107,6 +108,7 @@ pub struct Application {
     precision: Precision,
 
     // general settings
+    zoom_factor: f32,
     chart_size: ChartSize,
 
     // time chart settings
@@ -175,6 +177,7 @@ impl Application {
             calibration_factor: CALIBRATION_FACTOR_DEFAULT,
             unit: DEFAULT_UNIT,
             precision: DEFAULT_PRECISION,
+            zoom_factor: ZOOM_FACTOR_DEFAULT,
             chart_size: CHART_SIZE_DEFAULT,
             periods: PERIODS_DEFAULT,
             chart_x_bound: CHART_X_BOUND_DEFAULT,
@@ -276,6 +279,16 @@ impl Application {
             ui.separator();
 
             ui.label(RichText::new("General Settings").size(20.0).strong());
+
+            ui.horizontal(|ui| {
+                ui.label("Zoom Factor:");
+                ui.add(
+                    egui::DragValue::new(&mut self.zoom_factor)
+                        .range(0.1..=3.0)
+                        .speed(0.1)
+                        .update_while_editing(false),
+                );
+            });
 
             ui.horizontal(|ui| {
                 ui.label("Chart Size:");
@@ -387,6 +400,7 @@ impl eframe::App for Application {
             ..Style::default()
         };
         ctx.set_style(style);
+        ctx.set_zoom_factor(self.zoom_factor);
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.add_space(3.0);
